@@ -4,10 +4,13 @@ vfio_ss = ss.source_set()
 vfio_ss.add(files(
   'listener.c',
   'container.c',
-  'container-legacy.c',
   'helpers.c',
 ))
-vfio_ss.add(when: 'CONFIG_KVM', if_true: files('kvm-helpers.c'))
+vfio_ss.add(when: 'CONFIG_LINUX', if_true: files('container-legacy.c'))
+vfio_ss.add(when: 'CONFIG_KVM', if_true: files(
+  'kvm-helpers.c',
+  'container-legacy.c'
+))
 stub_ss.add(files('kvm-stubs.c'))
 vfio_ss.add(when: 'CONFIG_PSERIES', if_true: files('spapr.c'))
 vfio_ss.add(when: ['CONFIG_KVM', 'CONFIG_PSERIES'], if_true: files('kvm-spapr.c'))
