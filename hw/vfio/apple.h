@@ -54,6 +54,7 @@ struct VFIOApplePCIDevice {
     AppleVFIOState *apple;
     DeviceState *dma_companion;
     bool dma_companion_autocreated;
+    bool use_dma_companion;
 };
 
 extern VFIODeviceIOOps apple_vfio_device_io_ops;

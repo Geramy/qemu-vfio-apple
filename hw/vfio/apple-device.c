@@ -15,6 +15,7 @@
 #include <linux/vfio.h>
 
 #include "apple-dext-client.h"
+#include "hw/core/qdev-properties.h"
 #include "hw/vfio/apple.h"
 #include "hw/vfio/vfio-container.h"
 #include "qapi/error.h"
@@ -501,6 +502,7 @@ static void apple_vfio_update_irq_mask(VFIODevice *vbasedev)
 static int apple_vfio_set_irqs(VFIODevice *vbasedev, struct vfio_irq_set *irq)
 {
     apple_vfio_update_irq_mask(vbasedev);
+
     return 0;
 }
 
@@ -570,8 +572,10 @@ static int apple_vfio_region_read(VFIODevice *vbasedev, uint8_t nr, off_t off,
     return size;
 }
 
-static bool apple_vfio_config_write_is_safe(off_t off, uint32_t size)
+static bool apple_vfio_config_write_is_safe(VFIOPCIDevice *vdev,
+                                            off_t off, uint32_t size)
 {
+    PCIDevice *pdev = PCI_DEVICE(vdev);
     off_t end = off + size;
 
     /*
@@ -592,6 +596,19 @@ static bool apple_vfio_config_write_is_safe(off_t off, uint32_t size)
     /* BAR0-BAR5 */
     if (off < PCI_BASE_ADDRESS_5 + 4 && end > PCI_BASE_ADDRESS_0) {
         return false;
+    }
+
+    /*
+     * PCIe Device Control / Device Control 2 — writing MPS or MRRS to
+     * the physical device while DART mappings are active causes PCIe
+     * completion timeouts.
+     */
+    if (pdev->cap_present & QEMU_PCI_CAP_EXPRESS) {
+        uint8_t pcie_cap = pdev->exp.exp_cap;
+        if (ranges_overlap(off, size, pcie_cap + PCI_EXP_DEVCTL, 2) ||
+            ranges_overlap(off, size, pcie_cap + PCI_EXP_DEVCTL2, 2)) {
+            return false;
+        }
     }
 
     return true;
@@ -639,8 +656,9 @@ static int apple_vfio_bar_write(VFIODevice *vbasedev, uint8_t nr, off_t off,
         return -EINVAL;
     }
 
-    p = (char *)bm->addr + off;
     memcpy(&value, data, size);
+
+    p = (char *)bm->addr + off;
     host_pci_stn_le_p(p, size, value);
 
     return size;
@@ -670,7 +688,8 @@ static int apple_vfio_region_write(VFIODevice *vbasedev, uint8_t nr, off_t off,
         }
     }
 
-    if (!apple_vfio_config_write_is_safe(off, size)) {
+    if (!apple_vfio_config_write_is_safe(VFIO_PCI_DEVICE(vbasedev->dev),
+                                        off, size)) {
         return size;
     }
 
@@ -886,12 +905,14 @@ static void apple_vfio_pci_realize_fn(PCIDevice *pdev, Error **errp)
         return;
     }
 
-    if (!apple_vfio_create_dma_companion(adev, errp)) {
-        if (parent_exit) {
-            parent_exit(pdev);
+    if (adev->use_dma_companion) {
+        if (!apple_vfio_create_dma_companion(adev, errp)) {
+            if (parent_exit) {
+                parent_exit(pdev);
+            }
+            g_clear_pointer(&adev->apple, g_free);
+            return;
         }
-        g_clear_pointer(&adev->apple, g_free);
-        return;
     }
 }
 
@@ -914,6 +935,11 @@ static void apple_vfio_pci_finalize_fn(Object *obj)
     g_clear_pointer(&adev->apple, g_free);
 }
 
+static const Property apple_vfio_pci_properties[] = {
+    DEFINE_PROP_BOOL("dma-companion", VFIOApplePCIDevice,
+                     use_dma_companion, true),
+};
+
 static void apple_vfio_pci_class_init(ObjectClass *klass, const void *data)
 {
     PCIDeviceClass *pdc = PCI_DEVICE_CLASS(klass);
@@ -924,6 +950,7 @@ static void apple_vfio_pci_class_init(ObjectClass *klass, const void *data)
 
     pdc->realize = apple_vfio_pci_realize_fn;
     pdc->exit = apple_vfio_pci_exit_fn;
+    device_class_set_props(dc, apple_vfio_pci_properties);
     dc->user_creatable = true;
     dc->desc = "VFIO-based PCI device assignment (Apple/macOS)";
 }
