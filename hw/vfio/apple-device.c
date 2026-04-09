@@ -22,6 +22,7 @@
 #include "qemu/error-report.h"
 #include "qemu/host-pci-mmio.h"
 #include "qemu/main-loop.h"
+#include "qemu/units.h"
 
 typedef struct AppleVFIOSharedDext {
     io_connect_t conn;
@@ -877,6 +878,134 @@ void apple_vfio_dext_release(uint8_t bus, uint8_t device, uint8_t function,
 }
 
 /* ------------------------------------------------------------------ */
+/* DMA bounce buffer                                                  */
+/* ------------------------------------------------------------------ */
+
+static VFIOAppleBounceList apple_vfio_bounce_list =
+    QLIST_HEAD_INITIALIZER(apple_vfio_bounce_list);
+
+VFIOAppleBounceList *apple_vfio_get_bounce_buffers(void)
+{
+    return &apple_vfio_bounce_list;
+}
+
+static bool apple_vfio_setup_bounce_buffer(VFIOApplePCIDevice *adev,
+                                           Error **errp)
+{
+    VFIOPCIDevice *vdev = VFIO_PCI_DEVICE(adev);
+    VFIODevice *vbasedev = &vdev->vbasedev;
+    PCIDevice *pdev = PCI_DEVICE(vdev);
+    io_connect_t conn = apple_vfio_connection(vbasedev);
+    uint64_t size = adev->dma_bounce_size;
+    uint64_t bus_addr = 0, bus_len = 0;
+    mach_vm_address_t map_addr = 0;
+    mach_vm_size_t map_size = 0;
+    VFIOAppleBounceBuffer *bb;
+    kern_return_t kr;
+
+    if (size == 0) {
+        return true;
+    }
+
+    if (conn == IO_OBJECT_NULL) {
+        error_setg(errp, "vfio-apple: no dext connection for bounce buffer");
+        return false;
+    }
+
+    /*
+     * Ask the dext to allocate a DMA buffer and call PrepareForDMA as a
+     * single operation.  This yields a contiguous IOVA because the DART
+     * sees one IOBufferMemoryDescriptor rather than many small client
+     * memory descriptors with guard-page gaps between them.
+     *
+     * The buffer is mapped into our address space via IOConnectMapMemory64
+     * so we can back a guest MemoryRegion with it.
+     */
+    kr = apple_dext_allocate_dma_buffer(conn, size, 0,
+                                        &bus_addr, &bus_len,
+                                        &map_addr, &map_size);
+    if (kr != KERN_SUCCESS) {
+        error_setg(errp, "vfio-apple: AllocateDMABuffer failed "
+                   "(size=%" PRIu64 " kr=0x%x)", size, kr);
+        return false;
+    }
+
+    if (bus_len < size) {
+        error_setg(errp, "vfio-apple: DMA buffer segment too short "
+                   "(%" PRIu64 " < %" PRIu64 "); IOVA may not be contiguous",
+                   bus_len, size);
+        apple_dext_free_dma_buffer(conn, map_addr);
+        return false;
+    }
+
+    /* Verify the IOVA range does not collide with existing guest memory */
+    MemoryRegionSection mrs = memory_region_find(get_system_memory(),
+                                                 bus_addr, size);
+    if (mrs.mr) {
+        error_setg(errp, "vfio-apple: bounce buffer IOVA range "
+                   "[0x%" PRIx64 ", 0x%" PRIx64 ") overlaps with "
+                   "existing memory region '%s'",
+                   bus_addr, bus_addr + size,
+                   memory_region_name(mrs.mr));
+        memory_region_unref(mrs.mr);
+        apple_dext_free_dma_buffer(conn, map_addr);
+        return false;
+    }
+
+    /* Build the bounce buffer descriptor */
+    bb = g_new0(VFIOAppleBounceBuffer, 1);
+    bb->host_addr = (void *)(uintptr_t)map_addr;
+    bb->iova = bus_addr;
+    bb->size = size;
+    bb->pci_bus = pci_dev_bus_num(pdev);
+    bb->pci_slot = PCI_SLOT(pdev->devfn);
+    bb->pci_func = PCI_FUNC(pdev->devfn);
+
+    /* Create a RAM MemoryRegion backed by the shared dext buffer */
+    memory_region_init_ram_ptr(&bb->mr, OBJECT(adev), "vfio-apple-bounce",
+                               size, bb->host_addr);
+
+    /* Identity-map: place the bounce buffer at its IOVA in guest PA space */
+    memory_region_add_subregion(get_system_memory(), bb->iova, &bb->mr);
+    bb->mapped = true;
+
+    adev->bounce = bb;
+    QLIST_INSERT_HEAD(&apple_vfio_bounce_list, bb, next);
+
+    info_report("vfio-apple: bounce buffer %" PRIu64 " MiB at IOVA "
+                "0x%" PRIx64 " for PCI %02x:%02x.%x",
+                size / (1024 * 1024), bus_addr,
+                bb->pci_bus, bb->pci_slot, bb->pci_func);
+
+    return true;
+}
+
+static void apple_vfio_teardown_bounce_buffer(VFIOApplePCIDevice *adev)
+{
+    VFIOAppleBounceBuffer *bb = adev->bounce;
+    io_connect_t conn;
+
+    if (bb == NULL) {
+        return;
+    }
+
+    conn = apple_vfio_connection(&VFIO_PCI_DEVICE(adev)->vbasedev);
+
+    QLIST_REMOVE(bb, next);
+
+    if (bb->mapped) {
+        memory_region_del_subregion(get_system_memory(), &bb->mr);
+        bb->mapped = false;
+    }
+
+    object_unparent(OBJECT(&bb->mr));
+    apple_dext_free_dma_buffer(conn,
+                              (mach_vm_address_t)(uintptr_t)bb->host_addr);
+    g_free(bb);
+    adev->bounce = NULL;
+}
+
+/* ------------------------------------------------------------------ */
 /* QOM type: vfio-apple-pci                                           */
 /* ------------------------------------------------------------------ */
 
@@ -913,6 +1042,14 @@ static void apple_vfio_pci_realize_fn(PCIDevice *pdev, Error **errp)
             g_clear_pointer(&adev->apple, g_free);
             return;
         }
+    } else if (adev->dma_bounce_size > 0) {
+        if (!apple_vfio_setup_bounce_buffer(adev, errp)) {
+            if (parent_exit) {
+                parent_exit(pdev);
+            }
+            g_clear_pointer(&adev->apple, g_free);
+            return;
+        }
     }
 }
 
@@ -920,6 +1057,7 @@ static void apple_vfio_pci_exit_fn(PCIDevice *pdev)
 {
     VFIOApplePCIDevice *adev = VFIO_APPLE_PCI(pdev);
 
+    apple_vfio_teardown_bounce_buffer(adev);
     apple_vfio_destroy_dma_companion(adev);
 
     if (parent_exit) {
@@ -937,7 +1075,9 @@ static void apple_vfio_pci_finalize_fn(Object *obj)
 
 static const Property apple_vfio_pci_properties[] = {
     DEFINE_PROP_BOOL("dma-companion", VFIOApplePCIDevice,
-                     use_dma_companion, true),
+                     use_dma_companion, false),
+    DEFINE_PROP_SIZE("dma-bounce-size", VFIOApplePCIDevice,
+                     dma_bounce_size, 64 * MiB),
 };
 
 static void apple_vfio_pci_class_init(ObjectClass *klass, const void *data)

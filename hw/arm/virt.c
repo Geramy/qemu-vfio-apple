@@ -95,6 +95,10 @@
 #include "hw/cxl/cxl_host.h"
 #include "qemu/guest-random.h"
 
+#ifdef CONFIG_DARWIN
+#include "hw/vfio/apple.h"
+#endif
+
 static GlobalProperty arm_virt_compat_defaults[] = {
     { TYPE_VIRTIO_IOMMU_PCI, "aw-bits", "48" },
 };
@@ -2187,6 +2191,18 @@ void virt_machine_done(Notifier *notifier, void *data)
                                        vms->memmap[VIRT_PLATFORM_BUS].size,
                                        vms->irqmap[VIRT_PLATFORM_BUS]);
     }
+#ifdef CONFIG_DARWIN
+    if (info->dtb_filename == NULL && vms->pciehb_nodename) {
+        apple_vfio_add_bounce_fdt_nodes(ms->fdt, vms->pciehb_nodename);
+    }
+    if (!QLIST_EMPTY(apple_vfio_get_bounce_buffers()) &&
+        virt_is_acpi_enabled(vms)) {
+        error_report("vfio-apple: DMA bounce buffers require device tree "
+                     "(use -machine acpi=off)");
+        exit(1);
+    }
+#endif
+
     if (arm_load_dtb(info->dtb_start, info, info->dtb_limit, as, ms, cpu) < 0) {
         exit(1);
     }

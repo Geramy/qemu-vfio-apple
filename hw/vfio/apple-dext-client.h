@@ -62,6 +62,37 @@ kern_return_t apple_dext_register_dma(io_connect_t connection,
                                           uint64_t *out_bus_len);
 
 /*
+ * Allocate a DMA buffer in the dext and map it into this process.
+ *
+ * The dext allocates kernel memory (IOBufferMemoryDescriptor) and calls
+ * PrepareForDMA once for the entire buffer, yielding a contiguous IOVA.
+ * The buffer is then mapped into the caller's address space.
+ *
+ * @size:         requested buffer size in bytes
+ * @alignment:    alignment in bytes (0 defaults to page size)
+ * @out_bus_addr: receives the DMA bus address (IOVA)
+ * @out_bus_len:  receives the DMA segment length
+ * @out_addr:     receives the mapped virtual address in this process
+ * @out_size:     receives the mapped size
+ */
+kern_return_t apple_dext_allocate_dma_buffer(io_connect_t connection,
+                                             uint64_t size,
+                                             uint64_t alignment,
+                                             uint64_t *out_bus_addr,
+                                             uint64_t *out_bus_len,
+                                             mach_vm_address_t *out_addr,
+                                             mach_vm_size_t *out_size);
+
+/*
+ * Free a DMA buffer previously allocated with apple_dext_allocate_dma_buffer.
+ * Unmaps the buffer from this process and releases it in the dext.
+ *
+ * @addr: the mapped address returned by apple_dext_allocate_dma_buffer
+ */
+kern_return_t apple_dext_free_dma_buffer(io_connect_t connection,
+                                         mach_vm_address_t addr);
+
+/*
  * Unregister a previously registered DMA region identified by its IOVA.
  */
 kern_return_t apple_dext_unregister_dma(io_connect_t connection,

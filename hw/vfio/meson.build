@@ -48,4 +48,10 @@ if host_os == 'darwin'
                 if_true: [files('apple-device.c', 'apple-dma.c',
                                 'container-apple.c', 'apple-dext-client.c'),
                           coref, iokit])
+  # FDT helper lives in specific_ss because libfdt is only linked into
+  # targets that set CONFIG_DEVICE_TREE; system_ss is compiled once and
+  # shared across all softmmu targets. The only caller is hw/arm/virt.c,
+  # so gate on CONFIG_ARM_VIRT to avoid compiling it into other targets.
+  specific_ss.add(when: ['CONFIG_VFIO', 'CONFIG_ARM_VIRT'],
+                  if_true: files('apple-fdt.c'))
 endif

@@ -197,6 +197,82 @@ apple_dext_register_dma(io_connect_t connection,
 }
 
 kern_return_t
+apple_dext_allocate_dma_buffer(io_connect_t connection,
+                               uint64_t size,
+                               uint64_t alignment,
+                               uint64_t *out_bus_addr,
+                               uint64_t *out_bus_len,
+                               mach_vm_address_t *out_addr,
+                               mach_vm_size_t *out_size)
+{
+    uint64_t input[2] = { size, alignment };
+    uint64_t output[6] = {0};
+    uint32_t outputCount = 6;
+    kern_return_t kr;
+
+    if (connection == IO_OBJECT_NULL) {
+        return kIOReturnBadArgument;
+    }
+
+    kr = IOConnectCallMethod(connection,
+                             kSelectorAllocateDMABuffer,
+                             input, 2,
+                             NULL, 0,
+                             output, &outputCount,
+                             NULL, NULL);
+    if (kr != KERN_SUCCESS) {
+        return kr;
+    }
+
+    /* output[0] = size, [1] = flags, [2] = segCount, [3] = addr, [4] = len */
+    if (out_bus_addr != NULL && outputCount >= 4) {
+        *out_bus_addr = output[3];
+    }
+    if (out_bus_len != NULL && outputCount >= 5) {
+        *out_bus_len = output[4];
+    }
+
+    /* Map the dext-owned buffer into our address space */
+    if (out_addr != NULL && out_size != NULL) {
+        mach_vm_address_t addr = 0;
+        mach_vm_size_t map_size = 0;
+
+        /* Memory type 0 = kVFIOUserPCIDriverUserClientMemoryTypeDMABuffer */
+        kr = IOConnectMapMemory64(connection, 0, mach_task_self(),
+                                  &addr, &map_size, kIOMapAnywhere);
+        if (kr != KERN_SUCCESS) {
+            return kr;
+        }
+
+        *out_addr = addr;
+        *out_size = map_size;
+    }
+
+    return kIOReturnSuccess;
+}
+
+kern_return_t
+apple_dext_free_dma_buffer(io_connect_t connection,
+                           mach_vm_address_t addr)
+{
+    kern_return_t kr;
+
+    if (connection == IO_OBJECT_NULL) {
+        return kIOReturnBadArgument;
+    }
+
+    if (addr != 0) {
+        IOConnectUnmapMemory64(connection, 0, mach_task_self(), addr);
+    }
+
+    kr = IOConnectCallMethod(connection,
+                             kSelectorFreeDMABuffer,
+                             NULL, 0, NULL, 0,
+                             NULL, NULL, NULL, NULL);
+    return kr;
+}
+
+kern_return_t
 apple_dext_unregister_dma(io_connect_t connection,
                               uint64_t iova)
 {
