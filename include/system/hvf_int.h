@@ -19,6 +19,13 @@
 #ifdef __aarch64__
 #include <Hypervisor/Hypervisor.h>
 typedef hv_vcpu_t hvf_vcpuid;
+/*
+ * ACTLR_EL1.EnTSO (Apple-private). Setting this bit on Apple silicon
+ * switches the vCPU to a total-store-ordering memory model; the
+ * sanctioned HVF API for it (HV_SYS_REG_ACTLR_EL1) only allows
+ * get/set of this single bit.
+ */
+#define ACTLR_EL1_TSO_ENABLE_MASK (1ULL << 1)
 #else
 #include <Hypervisor/hv.h>
 typedef hv_vcpuid_t hvf_vcpuid;
@@ -41,6 +48,17 @@ struct HVFState {
     QTAILQ_HEAD(, hvf_sw_breakpoint) hvf_sw_breakpoints;
 };
 extern HVFState *hvf_state;
+#ifdef __aarch64__
+/*
+ * Set via the -accel hvf,tso=on accelerator property. When true, every
+ * vCPU has ACTLR_EL1.EnTSO set at vcpu-init time so the guest runs
+ * with x86-style total store ordering from its very first instruction.
+ * Doing this from QEMU is strictly safer than the in-guest "msr
+ * ACTLR_EL1" path because there are zero in-flight loads/stores when
+ * the bit is flipped.
+ */
+extern bool hvf_tso_mode;
+#endif
 
 struct AccelCPUState {
     hvf_vcpuid fd;

@@ -21,6 +21,9 @@
 #include "trace.h"
 
 bool hvf_allowed;
+#ifdef __aarch64__
+bool hvf_tso_mode;
+#endif
 
 const char *hvf_return_string(hv_return_t ret)
 {
@@ -224,6 +227,18 @@ static int hvf_gdbstub_sstep_flags(AccelState *as)
     return SSTEP_ENABLE | SSTEP_NOIRQ;
 }
 
+#ifdef __aarch64__
+static bool hvf_get_tso(Object *obj, Error **errp)
+{
+    return hvf_tso_mode;
+}
+
+static void hvf_set_tso(Object *obj, bool value, Error **errp)
+{
+    hvf_tso_mode = value;
+}
+#endif
+
 static void hvf_accel_class_init(ObjectClass *oc, const void *data)
 {
     AccelClass *ac = ACCEL_CLASS(oc);
@@ -231,6 +246,19 @@ static void hvf_accel_class_init(ObjectClass *oc, const void *data)
     ac->init_machine = hvf_accel_init;
     ac->allowed = &hvf_allowed;
     ac->gdbstub_supported_sstep_flags = hvf_gdbstub_sstep_flags;
+
+#ifdef __aarch64__
+    /*
+     * -accel hvf,tso=on: enable Apple TSO (total store ordering) mode
+     * for every vCPU at init time. Required by FEX-Emu and other x86
+     * userspace emulators on Apple silicon. Only meaningful on aarch64
+     * Apple silicon hosts running macOS 15.0 or newer.
+     */
+    object_class_property_add_bool(oc, "tso",
+                                   hvf_get_tso, hvf_set_tso);
+    object_class_property_set_description(oc, "tso",
+        "Enable Apple total-store-ordering memory model on all vCPUs");
+#endif
 }
 
 static const TypeInfo hvf_accel_type = {

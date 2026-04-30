@@ -1361,6 +1361,28 @@ int hvf_arch_init_vcpu(CPUState *cpu)
     cpu->accel->wfi_timer = timer_new_ns(QEMU_CLOCK_HOST,
                                           hvf_wfi_timer_cb, cpu);
 
+    /*
+     * Apple TSO: ACTLR_EL1.EnTSO switches the vCPU to a total-store-
+     * ordering memory model on Apple silicon. Required by FEX-Emu and
+     * other x86 user-mode emulators. Opt in with -accel hvf,tso=on.
+     * Set at vCPU init, before the vCPU executes any instructions.
+     */
+    if (hvf_tso_mode) {
+        if (__builtin_available(macOS 15.0, *)) {
+            uint64_t actlr = 0;
+            ret = hv_vcpu_get_sys_reg(cpu->accel->fd,
+                                      HV_SYS_REG_ACTLR_EL1, &actlr);
+            assert_hvf_ok(ret);
+            actlr |= ACTLR_EL1_TSO_ENABLE_MASK;
+            ret = hv_vcpu_set_sys_reg(cpu->accel->fd,
+                                      HV_SYS_REG_ACTLR_EL1, actlr);
+            assert_hvf_ok(ret);
+        } else {
+            warn_report_once("hvf: tso=on requires macOS 15.0 or newer; "
+                             "ignoring");
+        }
+    }
+
     aarch64_add_sme_properties(OBJECT(cpu));
     return 0;
 }
