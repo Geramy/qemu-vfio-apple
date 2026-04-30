@@ -585,8 +585,8 @@ static bool apple_vfio_config_write_is_safe(VFIOPCIDevice *vdev,
      * them from the guest breaks the IOKit mapping and the device
      * "falls off the bus."
      *
-     * Everything else (vendor capabilities, MSI/MSI-X, PCIe cap, etc.)
-     * is forwarded.
+     * Everything else (vendor capabilities, MSI-X control, PCIe cap,
+     * etc.) is forwarded.
      */
 
     /* PCI_STATUS stays emulated/blocked */
@@ -596,6 +596,21 @@ static bool apple_vfio_config_write_is_safe(VFIOPCIDevice *vdev,
 
     /* BAR0-BAR5 */
     if (off < PCI_BASE_ADDRESS_5 + 4 && end > PCI_BASE_ADDRESS_0) {
+        return false;
+    }
+
+    /*
+     * MSI capability — the dext programmed the real device's MSI
+     * Message Address/Data via ConfigureInterrupts() so the hardware
+     * delivers to an IOInterruptDispatchSource.  The guest's writes
+     * to this cap target its own virtual MSI controller; forwarding
+     * them overwrites the dext's routing and the device stops
+     * delivering MSIs entirely.  QEMU's PCI core keeps the emulated
+     * view so the guest sees what it wrote.
+     */
+    if (pdev->cap_present & QEMU_PCI_CAP_MSI && pdev->msi_cap != 0 &&
+        ranges_overlap(off, size, pdev->msi_cap,
+                       vdev->msi_cap_size ? vdev->msi_cap_size : 0x18)) {
         return false;
     }
 
