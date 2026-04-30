@@ -26,7 +26,28 @@
 /*
  * Find the VFIOUserPCIDriver dext instance matching the given PCI BDF
  * and open an IOUserClient connection to it.
- * Returns IO_OBJECT_NULL on failure.
+ *
+ * If `host_root` is NULL, BDF must uniquely identify a single
+ * VFIOUserPCIDriver instance — if two or more dext instances claim the
+ * same BDF (because they live under different host PCI roots), this
+ * fails with `*errp` describing the candidates. The caller can then
+ * specify `host_root` to pick one (the registry-entry name of the
+ * topmost IOPCIDevice ancestor, e.g. "pcic0-bridge" or "pci-bridge0").
+ *
+ * If `host_root` is non-NULL, only the matching candidate is selected.
+ *
+ * Returns IO_OBJECT_NULL on failure (with `*errp` set on ambiguity or no
+ * match; left unset on plain IOKit errors so callers can synthesise their
+ * own message).
+ */
+io_connect_t apple_dext_connect_with_root(uint8_t bus, uint8_t device,
+                                          uint8_t function,
+                                          const char *host_root,
+                                          char **errp);
+
+/*
+ * Convenience wrapper: same as apple_dext_connect_with_root(..., NULL, NULL).
+ * Use this for paths that have already validated uniqueness or don't care.
  */
 io_connect_t apple_dext_connect(uint8_t bus, uint8_t device,
                                     uint8_t function);
@@ -229,8 +250,8 @@ kern_return_t apple_dext_setup_interrupts(io_connect_t connection,
                                               uint32_t *out_num_vectors);
 
 /*
- * Reset the PCI device via the dext.  Tries FLR first, then falls
- * back to PM reset (D3hot → D0 transition).
+ * Reset the PCI device via the dext. The dext tries FLR first and falls
+ * back to a secondary bus (hot) reset if FLR isn't supported.
  */
 kern_return_t apple_dext_reset_device(io_connect_t connection);
 

@@ -32,6 +32,12 @@ struct AppleVFIOContainer {
     uint8_t host_bus;
     uint8_t host_device;
     uint8_t host_function;
+    /*
+     * Optional host PCI root name used to disambiguate when multiple
+     * VFIOUserPCIDriver instances share the same BDF. NULL means
+     * "uniquely matched without a hint". Owned by this struct.
+     */
+    char *host_root;
 };
 
 typedef struct AppleDextInterruptNotify AppleDextInterruptNotify;
@@ -70,6 +76,13 @@ struct VFIOApplePCIDevice {
     bool use_dma_companion;
     uint64_t dma_bounce_size;
     VFIOAppleBounceBuffer *bounce;
+    /*
+     * Optional `host-root=` property: the registry-entry name of the
+     * topmost IOPCIDevice ancestor for the dext instance to bind to
+     * (e.g. "pcic0-bridge"). Required only if multiple VFIOUserPCIDriver
+     * instances claim the same BDF. NULL when the user didn't set it.
+     */
+    char *host_root;
 };
 
 extern VFIODeviceIOOps apple_vfio_device_io_ops;
@@ -80,12 +93,21 @@ bool apple_vfio_get_bar_info(VFIOApplePCIDevice *adev, uint8_t bar,
                              uint8_t *mem_idx, uint64_t *size,
                              uint8_t *type);
 
+/*
+ * Shared dext-connection cache: a single io_connect_t is opened by the
+ * vfio-apple-pci container and shared with the matching apple-dma-pci
+ * companion. The cache is keyed by (bus, device, function, host_root)
+ * so devices that share a BDF under different host roots stay distinct.
+ * `host_root` may be NULL on both publish and lookup; NULL is treated
+ * as a distinct key from any non-NULL string.
+ */
 bool apple_vfio_dext_publish(uint8_t bus, uint8_t device, uint8_t function,
-                             io_connect_t conn);
+                             const char *host_root, io_connect_t conn);
 io_connect_t apple_vfio_dext_lookup(uint8_t bus, uint8_t device,
-                                    uint8_t function);
+                                    uint8_t function,
+                                    const char *host_root);
 void apple_vfio_dext_release(uint8_t bus, uint8_t device, uint8_t function,
-                             io_connect_t conn);
+                             const char *host_root, io_connect_t conn);
 
 /*
  * Global list of bounce buffers registered by vfio-apple-pci devices.

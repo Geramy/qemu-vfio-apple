@@ -14,6 +14,8 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 #include <dispatch/dispatch.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 enum {
@@ -92,14 +94,95 @@ dext_connection_matches_bdf(io_connect_t connection,
            (uint8_t)output[2] == function;
 }
 
+/*
+ * Walk up the IOService plane from `start` to the topmost IOPCIDevice
+ * ancestor (the host PCI root) and copy its registry-entry name into
+ * `out` (NUL-terminated, truncated to `out_size`).  Returns true on
+ * success, false if no IOPCIDevice ancestor exists or `out` would be
+ * empty.
+ *
+ * Each VFIOUserPCIDriver IOUserService entry sits as a child of the
+ * IOPCIDevice it matched against, which itself hangs off intermediate
+ * bridges and finally a root-port IOPCIDevice (e.g. "pci-bridge0",
+ * "pcic0-bridge").  That root-port name is what users see in System
+ * Information and is the disambiguator we expose as `host-root=`.
+ */
+static bool
+dext_root_name(io_service_t start, char *out, size_t out_size)
+{
+    io_registry_entry_t topmost = IO_OBJECT_NULL;
+    io_registry_entry_t current;
+    io_name_t className;
+    kern_return_t kr;
+
+    if (out == NULL || out_size == 0) {
+        return false;
+    }
+    out[0] = '\0';
+
+    current = start;
+    IOObjectRetain(current);
+
+    for (;;) {
+        io_registry_entry_t parent = IO_OBJECT_NULL;
+
+        if (IOObjectGetClass(current, className) == KERN_SUCCESS &&
+            strcmp(className, "IOPCIDevice") == 0) {
+            if (topmost != IO_OBJECT_NULL) {
+                IOObjectRelease(topmost);
+            }
+            IOObjectRetain(current);
+            topmost = current;
+        }
+
+        kr = IORegistryEntryGetParentEntry(current, kIOServicePlane, &parent);
+        IOObjectRelease(current);
+        if (kr != KERN_SUCCESS || parent == IO_OBJECT_NULL) {
+            break;
+        }
+        current = parent;
+    }
+
+    if (topmost == IO_OBJECT_NULL) {
+        return false;
+    }
+
+    io_name_t entryName;
+    kr = IORegistryEntryGetName(topmost, entryName);
+    IOObjectRelease(topmost);
+    if (kr != KERN_SUCCESS || entryName[0] == '\0') {
+        return false;
+    }
+
+    strncpy(out, entryName, out_size - 1);
+    out[out_size - 1] = '\0';
+    return true;
+}
+
+/*
+ * One candidate VFIOUserPCIDriver instance whose BDF matches the lookup.
+ * We keep the IOUserService entry around (rather than the open connection)
+ * so we can re-walk parents and only open the one we actually pick.
+ */
+typedef struct DextCandidate {
+    io_service_t service;       /* retained */
+    char         root[128];
+} DextCandidate;
+
+#define APPLE_DEXT_MAX_CANDIDATES 16
+
 io_connect_t
-apple_dext_connect(uint8_t bus, uint8_t device, uint8_t function)
+apple_dext_connect_with_root(uint8_t bus, uint8_t device, uint8_t function,
+                             const char *host_root, char **errp)
 {
     CFMutableDictionaryRef matching;
     io_iterator_t iterator = IO_OBJECT_NULL;
     io_connect_t result = IO_OBJECT_NULL;
     io_service_t service;
     kern_return_t kr;
+    DextCandidate cands[APPLE_DEXT_MAX_CANDIDATES];
+    size_t cand_count = 0;
+    int chosen = -1;
 
     matching = IOServiceMatching("IOUserService");
     if (matching == NULL) {
@@ -120,22 +203,138 @@ apple_dext_connect(uint8_t bus, uint8_t device, uint8_t function)
         }
 
         kr = IOServiceOpen(service, mach_task_self(), 0, &connection);
-        IOObjectRelease(service);
-
         if (kr != KERN_SUCCESS) {
+            IOObjectRelease(service);
             continue;
         }
 
-        if (dext_connection_matches_bdf(connection, bus, device, function)) {
-            result = connection;
-            break;
+        bool bdf_match = dext_connection_matches_bdf(connection, bus, device,
+                                                     function);
+        IOServiceClose(connection);
+
+        if (!bdf_match) {
+            IOObjectRelease(service);
+            continue;
         }
 
-        IOServiceClose(connection);
+        if (cand_count >= APPLE_DEXT_MAX_CANDIDATES) {
+            IOObjectRelease(service);
+            continue;
+        }
+
+        DextCandidate *c = &cands[cand_count++];
+        c->service = service; /* keep retained */
+        if (!dext_root_name(service, c->root, sizeof(c->root))) {
+            strncpy(c->root, "?", sizeof(c->root) - 1);
+            c->root[sizeof(c->root) - 1] = '\0';
+        }
     }
 
     IOObjectRelease(iterator);
+
+    if (cand_count == 0) {
+        if (errp != NULL && *errp == NULL) {
+        *errp = strdup("no VFIOUserPCIDriver dext instance is bound to "
+                       "that BDF — run `qemu-vfio-apple list-devices` to "
+                       "see which devices the dext currently claims");
+        }
+        return IO_OBJECT_NULL;
+    }
+
+    if (host_root == NULL || host_root[0] == '\0') {
+        if (cand_count == 1) {
+            chosen = 0;
+        } else if (errp != NULL) {
+            /* Build "pcic0-bridge, pcic1-bridge" candidate list. */
+            size_t list_cap = 0;
+            for (size_t i = 0; i < cand_count; i++) {
+                list_cap += strlen(cands[i].root) + 2; /* ", " */
+            }
+            char *list = (char *)calloc(list_cap + 1, 1);
+            if (list != NULL) {
+                for (size_t i = 0; i < cand_count; i++) {
+                    if (i > 0) {
+                        strcat(list, ", ");
+                    }
+                    strcat(list, cands[i].root);
+                }
+            }
+            const char *fmt =
+                "%02x:%02x.%x is claimed by %zu VFIOUserPCIDriver instances "
+                "(%s); add host-root=<name> to disambiguate";
+            int len = snprintf(NULL, 0, fmt,
+                               bus, device, function,
+                               cand_count, list ? list : "?");
+            if (len > 0) {
+                char *msg = (char *)malloc((size_t)len + 1);
+                if (msg != NULL) {
+                    snprintf(msg, (size_t)len + 1, fmt,
+                             bus, device, function,
+                             cand_count, list ? list : "?");
+                    *errp = msg;
+                }
+            }
+            free(list);
+        }
+    } else {
+        for (size_t i = 0; i < cand_count; i++) {
+            if (strcmp(cands[i].root, host_root) == 0) {
+                chosen = (int)i;
+                break;
+            }
+        }
+        if (chosen < 0 && errp != NULL) {
+            const char *fmt =
+                "no VFIOUserPCIDriver instance for %02x:%02x.%x under root "
+                "'%s' (found under: %s)";
+            size_t list_cap = 0;
+            for (size_t i = 0; i < cand_count; i++) {
+                list_cap += strlen(cands[i].root) + 2;
+            }
+            char *list = (char *)calloc(list_cap + 1, 1);
+            if (list != NULL) {
+                for (size_t i = 0; i < cand_count; i++) {
+                    if (i > 0) {
+                        strcat(list, ", ");
+                    }
+                    strcat(list, cands[i].root);
+                }
+            }
+            int len = snprintf(NULL, 0, fmt,
+                               bus, device, function,
+                               host_root, list ? list : "?");
+            if (len > 0) {
+                char *msg = (char *)malloc((size_t)len + 1);
+                if (msg != NULL) {
+                    snprintf(msg, (size_t)len + 1, fmt,
+                             bus, device, function,
+                             host_root, list ? list : "?");
+                    *errp = msg;
+                }
+            }
+            free(list);
+        }
+    }
+
+    if (chosen >= 0) {
+        kr = IOServiceOpen(cands[chosen].service, mach_task_self(), 0,
+                           &result);
+        if (kr != KERN_SUCCESS) {
+            result = IO_OBJECT_NULL;
+        }
+    }
+
+    for (size_t i = 0; i < cand_count; i++) {
+        IOObjectRelease(cands[i].service);
+    }
+
     return result;
+}
+
+io_connect_t
+apple_dext_connect(uint8_t bus, uint8_t device, uint8_t function)
+{
+    return apple_dext_connect_with_root(bus, device, function, NULL, NULL);
 }
 
 void

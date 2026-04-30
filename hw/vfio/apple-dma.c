@@ -125,6 +125,7 @@ struct AppleDMAState {
     uint32_t apple_host_bus;
     uint32_t apple_host_device;
     uint32_t apple_host_function;
+    char *apple_host_root;
 
     /* Runtime state */
     uint64_t cmd_gpa;
@@ -169,6 +170,9 @@ static bool apple_dma_backend_map(AppleDMAState *s, uint64_t gpa, uint32_t size,
         dma_memory_unmap(&address_space_memory, hva, map_len,
                          DMA_DIRECTION_TO_DEVICE, 0);
         if (kr != KERN_SUCCESS) {
+            error_report("apple-dma: register_dma failed gpa=0x%" PRIx64
+                         " size=%" PRIu32 " kr=0x%x",
+                         gpa, size, kr);
             return false;
         }
         *out_dma_addr = bus_addr;
@@ -415,22 +419,33 @@ static bool apple_dma_connect_dext(AppleDMAState *s, Error **errp)
     io_connect_t conn;
     kern_return_t kr;
 
+    const char *root = (s->apple_host_root && s->apple_host_root[0])
+                           ? s->apple_host_root : NULL;
+    char *connect_err = NULL;
+
     conn = apple_vfio_dext_lookup(s->apple_host_bus, s->apple_host_device,
-                                  s->apple_host_function);
+                                  s->apple_host_function, root);
     if (conn != IO_OBJECT_NULL) {
         s->dext_conn = conn;
         s->shared_dext_conn = true;
         return true;
     }
 
-    conn = apple_dext_connect(s->apple_host_bus, s->apple_host_device,
-                                  s->apple_host_function);
+    conn = apple_dext_connect_with_root(s->apple_host_bus,
+                                        s->apple_host_device,
+                                        s->apple_host_function,
+                                        root, &connect_err);
     if (conn == IO_OBJECT_NULL) {
-        error_setg(errp,
-                   "apple-dma: could not connect to dext for host PCI "
-                   "%02x:%02x.%x",
-                   s->apple_host_bus, s->apple_host_device,
-                   s->apple_host_function);
+        if (connect_err) {
+            error_setg(errp, "apple-dma: %s", connect_err);
+            free(connect_err);
+        } else {
+            error_setg(errp,
+                       "apple-dma: could not connect to dext for host PCI "
+                       "%02x:%02x.%x",
+                       s->apple_host_bus, s->apple_host_device,
+                       s->apple_host_function);
+        }
         return false;
     }
 
@@ -484,9 +499,12 @@ static void apple_dma_pci_exit(PCIDevice *pdev)
     AppleDMAState *s = APPLE_DMA_PCI(pdev);
 
     if (s->dext_conn != IO_OBJECT_NULL) {
+        const char *root = (s->apple_host_root && s->apple_host_root[0])
+                               ? s->apple_host_root : NULL;
         if (s->shared_dext_conn) {
             apple_vfio_dext_release(s->apple_host_bus, s->apple_host_device,
-                                    s->apple_host_function, s->dext_conn);
+                                    s->apple_host_function, root,
+                                    s->dext_conn);
         } else {
             apple_dext_disconnect(s->dext_conn);
         }
@@ -503,6 +521,7 @@ static const Property apple_dma_pci_properties[] = {
                        apple_host_device, UINT32_MAX),
     DEFINE_PROP_UINT32("x-apple-host-function", AppleDMAState,
                        apple_host_function, UINT32_MAX),
+    DEFINE_PROP_STRING("x-apple-host-root", AppleDMAState, apple_host_root),
 };
 
 static void apple_dma_pci_class_init(ObjectClass *klass, const void *data)

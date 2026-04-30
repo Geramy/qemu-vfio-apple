@@ -39,10 +39,17 @@ typedef struct AppleVFIODMAProbe {
 
 static GHashTable *apple_vfio_shared_dexts;
 
-static inline guint apple_vfio_dext_key(uint8_t bus, uint8_t device,
-                                        uint8_t function)
+/*
+ * Cache key for shared dext connections. Encodes BDF plus the host root
+ * name (or "" if unspecified) so two devices with the same BDF under
+ * different roots stay in distinct cache entries.
+ */
+static gchar *apple_vfio_dext_key(uint8_t bus, uint8_t device,
+                                  uint8_t function, const char *host_root)
 {
-    return ((guint)bus << 16) | ((guint)device << 8) | function;
+    return g_strdup_printf("%02x:%02x.%x@%s",
+                           bus, device, function,
+                           host_root ? host_root : "");
 }
 
 static inline AppleVFIOContainer *apple_vfio_container(VFIODevice *vbasedev)
@@ -287,6 +294,13 @@ static bool apple_vfio_create_dma_companion(VFIOApplePCIDevice *adev,
                                   vdev->host.slot, errp) ||
         !object_property_set_uint(OBJECT(dev), "x-apple-host-function",
                                   vdev->host.function, errp)) {
+        object_unref(OBJECT(dev));
+        return false;
+    }
+
+    if (adev->host_root != NULL && adev->host_root[0] != '\0' &&
+        !object_property_set_str(OBJECT(dev), "x-apple-host-root",
+                                 adev->host_root, errp)) {
         object_unref(OBJECT(dev));
         return false;
     }
@@ -829,39 +843,42 @@ VFIODeviceIOOps apple_vfio_device_io_ops = {
 };
 
 bool apple_vfio_dext_publish(uint8_t bus, uint8_t device, uint8_t function,
-                             io_connect_t conn)
+                             const char *host_root, io_connect_t conn)
 {
     AppleVFIOSharedDext *shared;
-    guint key = apple_vfio_dext_key(bus, device, function);
+    gchar *key = apple_vfio_dext_key(bus, device, function, host_root);
 
     if (!apple_vfio_shared_dexts) {
         apple_vfio_shared_dexts =
-            g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+            g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
     }
 
-    if (g_hash_table_lookup(apple_vfio_shared_dexts, GUINT_TO_POINTER(key))) {
+    if (g_hash_table_lookup(apple_vfio_shared_dexts, key)) {
+        g_free(key);
         return false;
     }
 
     shared = g_new0(AppleVFIOSharedDext, 1);
     shared->conn = conn;
     shared->refs = 1;
-    g_hash_table_insert(apple_vfio_shared_dexts, GUINT_TO_POINTER(key), shared);
+    g_hash_table_insert(apple_vfio_shared_dexts, key, shared);
     return true;
 }
 
 io_connect_t apple_vfio_dext_lookup(uint8_t bus, uint8_t device,
-                                    uint8_t function)
+                                    uint8_t function,
+                                    const char *host_root)
 {
     AppleVFIOSharedDext *shared;
-    guint key = apple_vfio_dext_key(bus, device, function);
+    gchar *key;
 
     if (!apple_vfio_shared_dexts) {
         return IO_OBJECT_NULL;
     }
 
-    shared = g_hash_table_lookup(apple_vfio_shared_dexts,
-                                 GUINT_TO_POINTER(key));
+    key = apple_vfio_dext_key(bus, device, function, host_root);
+    shared = g_hash_table_lookup(apple_vfio_shared_dexts, key);
+    g_free(key);
     if (!shared) {
         return IO_OBJECT_NULL;
     }
@@ -871,25 +888,27 @@ io_connect_t apple_vfio_dext_lookup(uint8_t bus, uint8_t device,
 }
 
 void apple_vfio_dext_release(uint8_t bus, uint8_t device, uint8_t function,
-                             io_connect_t conn)
+                             const char *host_root, io_connect_t conn)
 {
     AppleVFIOSharedDext *shared;
-    guint key = apple_vfio_dext_key(bus, device, function);
+    gchar *key;
 
     if (!apple_vfio_shared_dexts) {
         return;
     }
 
-    shared = g_hash_table_lookup(apple_vfio_shared_dexts,
-                                 GUINT_TO_POINTER(key));
+    key = apple_vfio_dext_key(bus, device, function, host_root);
+    shared = g_hash_table_lookup(apple_vfio_shared_dexts, key);
     if (!shared || shared->conn != conn) {
+        g_free(key);
         return;
     }
 
     if (--shared->refs == 0) {
         apple_dext_disconnect(conn);
-        g_hash_table_remove(apple_vfio_shared_dexts, GUINT_TO_POINTER(key));
+        g_hash_table_remove(apple_vfio_shared_dexts, key);
     }
+    g_free(key);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1093,6 +1112,15 @@ static const Property apple_vfio_pci_properties[] = {
                      use_dma_companion, false),
     DEFINE_PROP_SIZE("dma-bounce-size", VFIOApplePCIDevice,
                      dma_bounce_size, 64 * MiB),
+    /*
+     * `host-root=` disambiguates which VFIOUserPCIDriver instance to
+     * bind to when the BDF given via `host=` is claimed by more than
+     * one dext (different host PCI roots, same BB:DD.F). The value is
+     * the registry-entry name of the topmost IOPCIDevice ancestor —
+     * see `qemu-vfio-apple list-devices` for the ROOT column. Optional; only
+     * required when QEMU otherwise can't pick a unique candidate.
+     */
+    DEFINE_PROP_STRING("host-root", VFIOApplePCIDevice, host_root),
 };
 
 static void apple_vfio_pci_class_init(ObjectClass *klass, const void *data)
