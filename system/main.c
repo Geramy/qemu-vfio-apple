@@ -25,6 +25,7 @@
 #include "qemu/osdep.h"
 #include "qemu-main.h"
 #include "qemu/main-loop.h"
+#include "system/darwin-activity.h"
 #include "system/replay.h"
 #include "system/system.h"
 
@@ -39,11 +40,24 @@
 
 #ifdef CONFIG_DARWIN
 #include <CoreFoundation/CoreFoundation.h>
+#include <sys/resource.h>
 #endif
 
 static void *qemu_default_main(void *opaque)
 {
     int status;
+
+#ifdef CONFIG_DARWIN
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+    {
+        struct sched_param param;
+        param.sched_priority = sched_get_priority_max(SCHED_RR);
+        pthread_setschedparam(pthread_self(), SCHED_RR, &param);
+    }
+    setiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_THREAD, IOPOL_IMPORTANT);
+    setiopolicy_np(IOPOL_TYPE_VFS_ATIME_UPDATES, IOPOL_SCOPE_THREAD,
+                   IOPOL_ATIME_UPDATES_OFF);
+#endif
 
     replay_mutex_lock();
     bql_lock();
@@ -51,6 +65,8 @@ static void *qemu_default_main(void *opaque)
     qemu_cleanup(status);
     bql_unlock();
     replay_mutex_unlock();
+
+    qemu_darwin_end_vm_activity();
 
     exit(status);
 }
@@ -68,6 +84,31 @@ int (*qemu_main)(void) = os_darwin_cfrunloop_main;
 
 int main(int argc, char **argv)
 {
+#ifdef CONFIG_DARWIN
+    /*
+     * Raise the default disk I/O tier for the whole process before any
+     * thread is spawned. Threads we explicitly tune (iothread, aio worker
+     * pool, this main thread) set IOPOL_SCOPE_THREAD individually, but this
+     * process-scope default covers everything else (QMP monitor, VNC, char
+     * device helpers, migration, etc.) and any future threads we forget
+     * about. Without it, coalition-level backgrounding (e.g. when the
+     * hosting GUI app is not frontmost) demotes our default-STANDARD I/O
+     * into the kernel's throttled tier under contention.
+     */
+    setiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_PROCESS, IOPOL_IMPORTANT);
+    setiopolicy_np(IOPOL_TYPE_VFS_ATIME_UPDATES, IOPOL_SCOPE_PROCESS,
+                   IOPOL_ATIME_UPDATES_OFF);
+#endif
+
+    /*
+     * Hold an NSProcessInfo activity assertion for the lifetime of the
+     * process. Coalition-level backgrounding (triggered when a parent GUI
+     * app loses frontmost status) otherwise demotes our scheduler QoS and
+     * I/O tier for the whole process tree; this keeps us marked
+     * user-initiated / latency-critical regardless of who launched us.
+     */
+    qemu_darwin_begin_vm_activity("QEMU running guest VM");
+
     qemu_init(argc, argv);
 
     /*

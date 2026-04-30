@@ -162,6 +162,18 @@ static void *hvf_cpu_thread_fn(void *arg)
 
     rcu_register_thread();
 
+    /*
+     * QoS USER_INTERACTIVE biases the scheduler toward P-cores.
+     * SCHED_RR at max priority gives real-time round-robin scheduling.
+     */
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+
+    {
+        struct sched_param param;
+        param.sched_priority = sched_get_priority_max(SCHED_RR);
+        pthread_setschedparam(pthread_self(), SCHED_RR, &param);
+    }
+
     bql_lock();
     qemu_thread_get_self(cpu->thread);
 

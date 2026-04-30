@@ -25,11 +25,43 @@
 #include "qemu/rcu.h"
 #include "qemu/main-loop.h"
 
+#ifdef CONFIG_DARWIN
+#include <sys/resource.h>
+#endif
+
+#ifdef CONFIG_POSIX
+/* Benchmark results from 2016 on NVMe SSD drives show max polling times around
+ * 16-32 microseconds yield IOPS improvements for both iodepth=1 and iodepth=32
+ * workloads.
+ */
+#define IOTHREAD_POLL_MAX_NS_DEFAULT 32768ULL
+#else
+#define IOTHREAD_POLL_MAX_NS_DEFAULT 0ULL
+#endif
+
 static void *iothread_run(void *opaque)
 {
     IOThread *iothread = opaque;
 
     rcu_register_thread();
+
+#ifdef CONFIG_DARWIN
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+    {
+        struct sched_param param;
+        param.sched_priority = sched_get_priority_max(SCHED_RR);
+        pthread_setschedparam(pthread_self(), SCHED_RR, &param);
+    }
+    /*
+     * Mark this thread as high-priority for disk I/O so the kernel won't
+     * demote it to a throttled tier when the hosting GUI app goes into the
+     * background (coalition-level backgrounding otherwise treats our default
+     * IOPOL_STANDARD as throttleable under contention).
+     */
+    setiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_THREAD, IOPOL_IMPORTANT);
+    setiopolicy_np(IOPOL_TYPE_VFS_ATIME_UPDATES, IOPOL_SCOPE_THREAD,
+                   IOPOL_ATIME_UPDATES_OFF);
+#endif
     /*
      * g_main_context_push_thread_default() must be called before anything
      * in this new thread uses glib.

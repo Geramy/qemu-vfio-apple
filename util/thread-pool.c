@@ -24,6 +24,10 @@
 #include "block/thread-pool.h"
 #include "qemu/main-loop.h"
 
+#ifdef CONFIG_DARWIN
+#include <sys/resource.h>
+#endif
+
 static void do_spawn_thread(ThreadPoolAio *pool);
 
 typedef struct ThreadPoolElementAio ThreadPoolElementAio;
@@ -82,6 +86,21 @@ struct ThreadPoolAio {
 static void *worker_thread(void *opaque)
 {
     ThreadPoolAio *pool = opaque;
+
+#ifdef CONFIG_DARWIN
+    /*
+     * Block-layer aio worker threads are the ones actually issuing
+     * pread/pwrite/fsync for file-backed disks on Darwin (no linux-aio or
+     * io_uring here). Give them a scheduler hint and, more importantly, an
+     * elevated disk I/O tier so coalition-level backgrounding (e.g. the
+     * hosting GUI app losing frontmost status) does not push their I/O into
+     * the throttled tier.
+     */
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0);
+    setiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_THREAD, IOPOL_IMPORTANT);
+    setiopolicy_np(IOPOL_TYPE_VFS_ATIME_UPDATES, IOPOL_SCOPE_THREAD,
+                   IOPOL_ATIME_UPDATES_OFF);
+#endif
 
     qemu_mutex_lock(&pool->lock);
     pool->pending_threads--;
