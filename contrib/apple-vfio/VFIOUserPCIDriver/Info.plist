@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IOKitPersonalities</key>
+	<dict>
+		<key>VFIOUserPCIDriver</key>
+		<dict>
+			<key>IOClass</key>
+			<string>IOUserService</string>
+			<key>IOPCIPrimaryMatch</key>
+			<string>0xFFFFFFFF&amp;0x00000000</string>
+			<key>IOPCITunnelCompatible</key>
+			<true/>
+			<key>IOProviderClass</key>
+			<string>IOPCIDevice</string>
+			<key>IOUserClass</key>
+			<string>VFIOUserPCIDriver</string>
+			<key>IOUserServerName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>VFIOUserPCIDriverUserClientProperties</key>
+			<dict>
+				<key>IOClass</key>
+				<string>IOUserUserClient</string>
+				<key>IOUserClass</key>
+				<string>VFIOUserPCIDriverUserClient</string>
+			</dict>
+		</dict>
+	</dict>
+</dict>
+</plist>

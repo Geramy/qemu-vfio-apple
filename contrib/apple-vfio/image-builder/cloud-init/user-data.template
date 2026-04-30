@@ -1,0 +1,28 @@
+#cloud-config
+hostname: @@BUILD_HOSTNAME@@
+manage_etc_hosts: true
+
+users:
+  - default
+
+ssh_pwauth: true
+package_update: true
+package_upgrade: true
+
+write_files:
+  - path: /usr/local/sbin/qemu-vfio-provision-desktop.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+@@PROVISION_SCRIPT@@
+  - path: /var/cache/qemu-vfio/apple-dma-src.tgz
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: |
+@@APPLE_DMA_SRC_B64@@
+
+runcmd:
+  - [bash, -lc, "LOGIN_USER='@@BUILD_USER@@' LOGIN_PASSWORD='@@BUILD_PASSWORD@@' INSTALL_FEX=@@INSTALL_FEX@@ INSTALL_STEAM=@@INSTALL_STEAM@@ INSTALL_NVIDIA=@@INSTALL_NVIDIA@@ INSTALL_APPLE_DMA=@@INSTALL_APPLE_DMA@@ APPLE_DMA_VERSION='@@APPLE_DMA_VERSION@@' APPLE_DMA_SRC_TGZ=/var/cache/qemu-vfio/apple-dma-src.tgz /usr/local/sbin/qemu-vfio-provision-desktop.sh 2>&1 | tee /var/log/qemu-vfio-provision.log"]
+
+final_message: "qemu-vfio desktop image build complete after $UPTIME seconds"

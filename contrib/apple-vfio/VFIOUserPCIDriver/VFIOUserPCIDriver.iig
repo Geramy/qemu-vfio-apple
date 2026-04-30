@@ -1,0 +1,28 @@
+//
+//  VFIOUserPCIDriver.iig
+//  VFIOUserPCIDriver
+//
+//  Created by scottjg on 3/18/26.
+//
+
+#ifndef VFIOUserPCIDriver_h
+#define VFIOUserPCIDriver_h
+
+#include <Availability.h>
+#include <DriverKit/IOService.iig>
+#include <PCIDriverKit/IOPCIDevice.iig>
+
+class VFIOUserPCIDriver: public IOService
+{
+public:
+    virtual kern_return_t
+    Start(IOService * provider) override;
+
+    virtual kern_return_t
+    NewUserClient(uint32_t type, IOUserClient ** userClient) override;
+
+    virtual kern_return_t
+    Stop(IOService * provider) override;
+};
+
+#endif /* VFIOUserPCIDriver_h */

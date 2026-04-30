@@ -1,0 +1,42 @@
+#ifndef VFIOUserPCIDriverUserClient_h
+#define VFIOUserPCIDriverUserClient_h
+
+#include <Availability.h>
+#include <DriverKit/IOUserClient.iig>
+#include <DriverKit/IOInterruptDispatchSource.iig>
+
+class VFIOUserPCIDriverUserClient: public IOUserClient
+{
+public:
+    virtual kern_return_t
+    Start(IOService * provider) override;
+
+    virtual kern_return_t
+    Stop(IOService * provider) override;
+
+    virtual kern_return_t
+    ExternalMethod(uint64_t selector,
+                   IOUserClientMethodArguments * arguments,
+                   const IOUserClientMethodDispatch * dispatch,
+                   OSObject * target,
+                   void * reference) override;
+
+    virtual void
+    AsyncCompletion(OSAction * action,
+                    IOReturn status,
+                    const IOUserClientAsyncArgumentsArray asyncData,
+                    uint32_t asyncDataCount) override;
+
+    virtual kern_return_t
+    CopyClientMemoryForType(uint64_t type,
+                            uint64_t * options,
+                            IOMemoryDescriptor ** memory) override;
+
+    virtual void
+    InterruptOccurred(OSAction * action,
+                      uint64_t count,
+                      uint64_t time)
+        TYPE(IOInterruptDispatchSource::InterruptOccurred);
+};
+
+#endif /* VFIOUserPCIDriverUserClient_h */

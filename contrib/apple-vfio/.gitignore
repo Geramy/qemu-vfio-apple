@@ -1,0 +1,15 @@
+# Xcode per-user state (scheme visibility, UI state, breakpoints)
+**/xcuserdata/
+
+# macOS Finder folder metadata
+.DS_Store
+
+# Build-time caches: pci.ids, qemu-dist tarball + extracted tree.
+# Populated by scripts/fetch-pci-ids.sh and scripts/fetch-qemu-dist.sh
+# on every clean build.
+build-cache/
+
+# image-builder output: qcow2 + manifest.json artifacts produced by
+# build-ubuntu-desktop-image.sh. Pushed to ghcr by publish-to-ghcr.sh
+# rather than committed.
+image-builder/out/

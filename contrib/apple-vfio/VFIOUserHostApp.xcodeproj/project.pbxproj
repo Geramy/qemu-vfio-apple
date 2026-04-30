@@ -1,0 +1,678 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4141A0012F70D00100C53A34 /* Hypervisor.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4141A0002F70D00100C53A34 /* Hypervisor.framework */; };
+		416AB0092F6BD5FB00C53A34 /* DriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 416AB0082F6BD5FB00C53A34 /* DriverKit.framework */; };
+		416AB0122F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 416AB0062F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		416AB0182F6C0D0A00C53A34 /* PCIDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 416AB0192F6C0D0A00C53A34 /* PCIDriverKit.framework */; };
+		41DD200A2F71D00100C53A34 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41CC10092F71D00100C53A34 /* IOKit.framework */; };
+		41DD20102F71D00100C53A34 /* qemu-vfio-apple in Embed CLI Tools */ = {isa = PBXBuildFile; fileRef = 41DD20032F71D00100C53A34 /* qemu-vfio-apple */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		416AB0102F6BD5FB00C53A34 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 416AAFEB2F6BD59100C53A34 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 416AB0052F6BD5FB00C53A34;
+			remoteInfo = VFIOUserPCIDriver;
+		};
+		41DD200E2F71D00100C53A34 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 416AAFEB2F6BD59100C53A34 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 41DD20012F71D00100C53A34;
+			remoteInfo = "qemu-vfio-apple";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		416AB0172F6BD5FB00C53A34 /* Embed System Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				416AB0122F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext in Embed System Extensions */,
+			);
+			name = "Embed System Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		41CC100F2F71D00100C53A34 /* Embed CLI Tools */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				41DD20102F71D00100C53A34 /* qemu-vfio-apple in Embed CLI Tools */,
+			);
+			name = "Embed CLI Tools";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		4141A0002F70D00100C53A34 /* Hypervisor.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Hypervisor.framework; path = System/Library/Frameworks/Hypervisor.framework; sourceTree = SDKROOT; };
+		416AAFF32F6BD59100C53A34 /* VFIOUserHostApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VFIOUserHostApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		416AB0062F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext; sourceTree = BUILT_PRODUCTS_DIR; };
+		416AB0082F6BD5FB00C53A34 /* DriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DriverKit.framework; path = System/Library/Frameworks/DriverKit.framework; sourceTree = SDKROOT; };
+		416AB0192F6C0D0A00C53A34 /* PCIDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PCIDriverKit.framework; path = System/Library/Frameworks/PCIDriverKit.framework; sourceTree = SDKROOT; };
+		41CC10092F71D00100C53A34 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		41DD20032F71D00100C53A34 /* qemu-vfio-apple */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "qemu-vfio-apple"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		416AB0132F6BD5FB00C53A34 /* Exceptions for "VFIOUserPCIDriver" folder in "VFIOUserPCIDriver" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 416AB0052F6BD5FB00C53A34 /* VFIOUserPCIDriver */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		416AAFF52F6BD59100C53A34 /* VFIOUserHostApp */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = VFIOUserHostApp;
+			sourceTree = "<group>";
+		};
+		416AB00A2F6BD5FB00C53A34 /* VFIOUserPCIDriver */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				416AB0132F6BD5FB00C53A34 /* Exceptions for "VFIOUserPCIDriver" folder in "VFIOUserPCIDriver" target */,
+			);
+			path = VFIOUserPCIDriver;
+			sourceTree = "<group>";
+		};
+		41DD20022F71D00100C53A34 /* qemu-vfio-apple */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "qemu-vfio-apple";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		416AAFF02F6BD59100C53A34 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4141A0012F70D00100C53A34 /* Hypervisor.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		416AB0032F6BD5FB00C53A34 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				416AB0092F6BD5FB00C53A34 /* DriverKit.framework in Frameworks */,
+				416AB0182F6C0D0A00C53A34 /* PCIDriverKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		41DD20052F71D00100C53A34 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41DD200A2F71D00100C53A34 /* IOKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		416AAFEA2F6BD59100C53A34 = {
+			isa = PBXGroup;
+			children = (
+				416AAFF52F6BD59100C53A34 /* VFIOUserHostApp */,
+				416AB00A2F6BD5FB00C53A34 /* VFIOUserPCIDriver */,
+				41DD20022F71D00100C53A34 /* qemu-vfio-apple */,
+				416AB0072F6BD5FB00C53A34 /* Frameworks */,
+				416AAFF42F6BD59100C53A34 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		416AAFF42F6BD59100C53A34 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				416AAFF32F6BD59100C53A34 /* VFIOUserHostApp.app */,
+				416AB0062F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext */,
+				41DD20032F71D00100C53A34 /* qemu-vfio-apple */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		416AB0072F6BD5FB00C53A34 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4141A0002F70D00100C53A34 /* Hypervisor.framework */,
+				416AB0082F6BD5FB00C53A34 /* DriverKit.framework */,
+				416AB0192F6C0D0A00C53A34 /* PCIDriverKit.framework */,
+				41CC10092F71D00100C53A34 /* IOKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		416AB0012F6BD5FB00C53A34 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		416AAFF22F6BD59100C53A34 /* VFIOUserHostApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 416AAFFE2F6BD59300C53A34 /* Build configuration list for PBXNativeTarget "VFIOUserHostApp" */;
+			buildPhases = (
+				416AAFEF2F6BD59100C53A34 /* Sources */,
+				416AAFF02F6BD59100C53A34 /* Frameworks */,
+				416AAFF12F6BD59100C53A34 /* Resources */,
+				416AB0172F6BD5FB00C53A34 /* Embed System Extensions */,
+				41CC100F2F71D00100C53A34 /* Embed CLI Tools */,
+				41E0BAC02F70D00100C53A34 /* Embed QEMU */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				416AB0112F6BD5FB00C53A34 /* PBXTargetDependency */,
+				41DD200D2F71D00100C53A34 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				416AAFF52F6BD59100C53A34 /* VFIOUserHostApp */,
+			);
+			name = VFIOUserHostApp;
+			packageProductDependencies = (
+			);
+			productName = VFIOUserHostApp;
+			productReference = 416AAFF32F6BD59100C53A34 /* VFIOUserHostApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		416AB0052F6BD5FB00C53A34 /* VFIOUserPCIDriver */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 416AB0142F6BD5FB00C53A34 /* Build configuration list for PBXNativeTarget "VFIOUserPCIDriver" */;
+			buildPhases = (
+				416AB0012F6BD5FB00C53A34 /* Headers */,
+				416AB0022F6BD5FB00C53A34 /* Sources */,
+				416AB0032F6BD5FB00C53A34 /* Frameworks */,
+				416AB0042F6BD5FB00C53A34 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				416AB00A2F6BD5FB00C53A34 /* VFIOUserPCIDriver */,
+			);
+			name = VFIOUserPCIDriver;
+			packageProductDependencies = (
+			);
+			productName = VFIOUserPCIDriver;
+			productReference = 416AB0062F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext */;
+			productType = "com.apple.product-type.driver-extension";
+		};
+		41DD20012F71D00100C53A34 /* qemu-vfio-apple */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 41DD20062F71D00100C53A34 /* Build configuration list for PBXNativeTarget "qemu-vfio-apple" */;
+			buildPhases = (
+				41DD20042F71D00100C53A34 /* Sources */,
+				41DD20052F71D00100C53A34 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				41DD20022F71D00100C53A34 /* qemu-vfio-apple */,
+			);
+			name = "qemu-vfio-apple";
+			packageProductDependencies = (
+			);
+			productName = "qemu-vfio-apple";
+			productReference = 41DD20032F71D00100C53A34 /* qemu-vfio-apple */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		416AAFEB2F6BD59100C53A34 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					416AAFF22F6BD59100C53A34 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					416AB0052F6BD5FB00C53A34 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					41DD20012F71D00100C53A34 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+				};
+			};
+			buildConfigurationList = 416AAFEE2F6BD59100C53A34 /* Build configuration list for PBXProject "VFIOUserHostApp" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 416AAFEA2F6BD59100C53A34;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 416AAFF42F6BD59100C53A34 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				416AAFF22F6BD59100C53A34 /* VFIOUserHostApp */,
+				416AB0052F6BD5FB00C53A34 /* VFIOUserPCIDriver */,
+				41DD20012F71D00100C53A34 /* qemu-vfio-apple */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		416AAFF12F6BD59100C53A34 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		416AB0042F6BD5FB00C53A34 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		41E0BAC02F70D00100C53A34 /* Embed QEMU */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed QEMU";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$SRCROOT/scripts/embed-qemu.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		416AAFEF2F6BD59100C53A34 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		416AB0022F6BD5FB00C53A34 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		41DD20042F71D00100C53A34 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		416AB0112F6BD5FB00C53A34 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 416AB0052F6BD5FB00C53A34 /* VFIOUserPCIDriver */;
+			targetProxy = 416AB0102F6BD5FB00C53A34 /* PBXContainerItemProxy */;
+		};
+		41DD200D2F71D00100C53A34 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 41DD20012F71D00100C53A34 /* qemu-vfio-apple */;
+			targetProxy = 41DD200E2F71D00100C53A34 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		416AAFFC2F6BD59300C53A34 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = MTLNCV5G72;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		416AAFFD2F6BD59300C53A34 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = MTLNCV5G72;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		416AAFFF2F6BD59300C53A34 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VFIOUserHostApp/VFIOUserHostApp.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MTLNCV5G72;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "for claiming pci devices on your system to pass through to virtual machines";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = scottjg.VFIOUserHostApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		416AB0002F6BD59300C53A34 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VFIOUserHostApp/VFIOUserHostApp.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MTLNCV5G72;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "for claiming pci devices on your system to pass through to virtual machines";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = scottjg.VFIOUserHostApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		416AB0152F6BD5FB00C53A34 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = VFIOUserPCIDriver/VFIOUserPCIDriver.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DRIVERKIT_DEPLOYMENT_TARGET = 25.2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VFIOUserPCIDriver/Info.plist;
+				INFOPLIST_KEY_OSBundleUsageDescription = "VFIO User PCI Driver";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = scottjg.VFIOUserHostApp.VFIOUserPCIDriver;
+				PRODUCT_NAME = "$(inherited)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUN_CLANG_STATIC_ANALYZER = YES;
+				SDKROOT = driverkit;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		416AB0162F6BD5FB00C53A34 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = VFIOUserPCIDriver/VFIOUserPCIDriver.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DRIVERKIT_DEPLOYMENT_TARGET = 25.2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VFIOUserPCIDriver/Info.plist;
+				INFOPLIST_KEY_OSBundleUsageDescription = "VFIO User PCI Driver";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = scottjg.VFIOUserHostApp.VFIOUserPCIDriver;
+				PRODUCT_NAME = "$(inherited)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUN_CLANG_STATIC_ANALYZER = YES;
+				SDKROOT = driverkit;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		41DD20072F71D00100C53A34 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "qemu-vfio-apple/qemu-vfio-apple.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MTLNCV5G72;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "scottjg.VFIOUserHostApp.qemu-vfio-apple";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		41DD20082F71D00100C53A34 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "qemu-vfio-apple/qemu-vfio-apple.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MTLNCV5G72;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "scottjg.VFIOUserHostApp.qemu-vfio-apple";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		416AAFEE2F6BD59100C53A34 /* Build configuration list for PBXProject "VFIOUserHostApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				416AAFFC2F6BD59300C53A34 /* Debug */,
+				416AAFFD2F6BD59300C53A34 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		416AAFFE2F6BD59300C53A34 /* Build configuration list for PBXNativeTarget "VFIOUserHostApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				416AAFFF2F6BD59300C53A34 /* Debug */,
+				416AB0002F6BD59300C53A34 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		416AB0142F6BD5FB00C53A34 /* Build configuration list for PBXNativeTarget "VFIOUserPCIDriver" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				416AB0152F6BD5FB00C53A34 /* Debug */,
+				416AB0162F6BD5FB00C53A34 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		41DD20062F71D00100C53A34 /* Build configuration list for PBXNativeTarget "qemu-vfio-apple" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41DD20072F71D00100C53A34 /* Debug */,
+				41DD20082F71D00100C53A34 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 416AAFEB2F6BD59100C53A34 /* Project object */;
+}

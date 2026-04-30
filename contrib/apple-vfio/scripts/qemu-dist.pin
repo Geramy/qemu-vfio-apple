@@ -1,0 +1,31 @@
+# Pinned QEMU dist OCI artifact.
+#
+# Consumed by scripts/fetch-qemu-dist.sh. Sourced as shell so values must
+# be plain `key=value` (no inline comments on value lines).
+#
+# To bump (run all from the qemu source root):
+#   1. ./contrib/apple-vfio/scripts/make-dist.sh
+#      Produces a fresh ./dist/ + ./dist.tar.gz.
+#   2. ./contrib/apple-vfio/scripts/publish-qemu-dist-to-ghcr.sh
+#      No args needed — the script defaults the tag to
+#      `git describe --always --dirty --abbrev=12` of the qemu tree, so
+#      the registry tag carries the source provenance. The script then
+#      prints the exact QEMU_DIST_TAG + QEMU_DIST_SHA256 values to paste
+#      below.
+#   3. Paste the printed values, commit.
+#
+# Tag carries source provenance (you can `git checkout <tag>` and
+# rebuild). Sha locks the actual binary content — two clean builds of
+# the same commit can still differ (toolchain, embedded timestamps),
+# so we keep both.
+#
+# QEMU_DIST_SHA256 is the sha256 of the layer blob (= sha256 of the
+# .tar.gz). The fetch script verifies BOTH that the tag's manifest
+# references this digest AND that the downloaded blob hashes to it, so
+# a registry that repoints the tag (deliberately or otherwise) can't
+# slip a different artifact past us.
+
+QEMU_DIST_REPO=ghcr.io/scottjg/qemu-vfio-apple-dist
+QEMU_DIST_TAG=v11.0.0-rc1-108-gcca59f391c15
+QEMU_DIST_SHA256=a13acc9d434e9fb5778d786934f4b25861ff4635e194d57a2c2ec289647f4456
+
