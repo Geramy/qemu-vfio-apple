@@ -26,6 +26,6 @@
 # slip a different artifact past us.
 
 QEMU_DIST_REPO=ghcr.io/scottjg/qemu-vfio-apple-dist
-QEMU_DIST_TAG=v11.0.0-rc1-108-gcca59f391c15
-QEMU_DIST_SHA256=a13acc9d434e9fb5778d786934f4b25861ff4635e194d57a2c2ec289647f4456
+QEMU_DIST_TAG=v11.0.0-rc1-749-g7e013ad0cdcd
+QEMU_DIST_SHA256=7cfa9e50f2e1bcb26408ecb9f69ccbd909d4093085112045721c921b42b0ed28
 
