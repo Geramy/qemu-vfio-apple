@@ -705,19 +705,27 @@ static dma_addr_t apple_dma_orig_addr(struct apple_dma_dev *ad,
 static void wnd_shape_for(phys_addr_t gpa, size_t size,
 			  phys_addr_t *out_base, size_t *out_size)
 {
+	/*
+	 * The host DART requires 16K alignment for all mappings.
+	 * Even if windowing is disabled or the request doesn't fit
+	 * a window, we must ensure the requested range is covered
+	 * by a 16K-aligned reservation.
+	 */
+	const phys_addr_t align = 16384; /* 16K */
+
 	if (wnd_enabled() && size <= wnd_size) {
 		phys_addr_t base = gpa & wnd_mask;
 		phys_addr_t end_base = (gpa + size - 1) & wnd_mask;
 
-		if (base == end_base) {
+		if (base == end_base && (base & (align - 1)) == 0 && (wnd_size % align == 0)) {
 			*out_base = base;
 			*out_size = wnd_size;
 			return;
 		}
 	}
 
-	*out_base = gpa;
-	*out_size = size;
+	*out_base = gpa & ~(align - 1);
+	*out_size = ((gpa + size + (align - 1)) & ~(align - 1)) - *out_base;
 }
 
 /*
