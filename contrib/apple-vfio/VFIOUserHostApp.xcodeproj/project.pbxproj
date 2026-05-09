@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		4141A0012F70D00100C53A34 /* Hypervisor.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4141A0002F70D00100C53A34 /* Hypervisor.framework */; };
 		416AB0092F6BD5FB00C53A34 /* DriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 416AB0082F6BD5FB00C53A34 /* DriverKit.framework */; };
-		416AB0122F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 416AB0062F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		416AB0122F6BD5FB00C53A34 /* com.geramyloveless.VFIOUserHostApp.VFIOUserPCIDriver.dext in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 416AB0062F6BD5FB00C53A34 /* com.geramyloveless.VFIOUserHostApp.VFIOUserPCIDriver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		416AB0182F6C0D0A00C53A34 /* PCIDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 416AB0192F6C0D0A00C53A34 /* PCIDriverKit.framework */; };
 		41DD200A2F71D00100C53A34 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41CC10092F71D00100C53A34 /* IOKit.framework */; };
 		41DD20102F71D00100C53A34 /* qemu-vfio-apple in Embed CLI Tools */ = {isa = PBXBuildFile; fileRef = 41DD20032F71D00100C53A34 /* qemu-vfio-apple */; };
@@ -39,7 +39,7 @@
 			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
 			dstSubfolderSpec = 16;
 			files = (
-				416AB0122F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext in Embed System Extensions */,
+				416AB0122F6BD5FB00C53A34 /* com.geramyloveless.VFIOUserHostApp.VFIOUserPCIDriver.dext in Embed System Extensions */,
 			);
 			name = "Embed System Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -60,7 +60,7 @@
 /* Begin PBXFileReference section */
 		4141A0002F70D00100C53A34 /* Hypervisor.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Hypervisor.framework; path = System/Library/Frameworks/Hypervisor.framework; sourceTree = SDKROOT; };
 		416AAFF32F6BD59100C53A34 /* VFIOUserHostApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VFIOUserHostApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		416AB0062F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext; sourceTree = BUILT_PRODUCTS_DIR; };
+		416AB0062F6BD5FB00C53A34 /* com.geramyloveless.VFIOUserHostApp.VFIOUserPCIDriver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = com.geramyloveless.VFIOUserHostApp.VFIOUserPCIDriver.dext; sourceTree = BUILT_PRODUCTS_DIR; };
 		416AB0082F6BD5FB00C53A34 /* DriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DriverKit.framework; path = System/Library/Frameworks/DriverKit.framework; sourceTree = SDKROOT; };
 		416AB0192F6C0D0A00C53A34 /* PCIDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PCIDriverKit.framework; path = System/Library/Frameworks/PCIDriverKit.framework; sourceTree = SDKROOT; };
 		41CC10092F71D00100C53A34 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
@@ -142,7 +142,7 @@
 			isa = PBXGroup;
 			children = (
 				416AAFF32F6BD59100C53A34 /* VFIOUserHostApp.app */,
-				416AB0062F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext */,
+				416AB0062F6BD5FB00C53A34 /* com.geramyloveless.VFIOUserHostApp.VFIOUserPCIDriver.dext */,
 				41DD20032F71D00100C53A34 /* qemu-vfio-apple */,
 			);
 			name = Products;
@@ -219,7 +219,7 @@
 			packageProductDependencies = (
 			);
 			productName = VFIOUserPCIDriver;
-			productReference = 416AB0062F6BD5FB00C53A34 /* scottjg.VFIOUserHostApp.VFIOUserPCIDriver.dext */;
+			productReference = 416AB0062F6BD5FB00C53A34 /* com.geramyloveless.VFIOUserHostApp.VFIOUserPCIDriver.dext */;
 			productType = "com.apple.product-type.driver-extension";
 		};
 		41DD20012F71D00100C53A34 /* qemu-vfio-apple */ = {
@@ -397,7 +397,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DEVELOPMENT_TEAM = HDP6SN4RHQ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -461,7 +461,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DEVELOPMENT_TEAM = HDP6SN4RHQ;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -491,7 +491,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DEVELOPMENT_TEAM = YBQ9BU6Q6F;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -502,7 +502,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = scottjg.VFIOUserHostApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.geramyloveless.VFIOUserHostApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -522,7 +522,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DEVELOPMENT_TEAM = YBQ9BU6Q6F;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -533,7 +533,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = scottjg.VFIOUserHostApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.geramyloveless.VFIOUserHostApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -551,13 +551,13 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DEVELOPMENT_TEAM = YBQ9BU6Q6F;
 				DRIVERKIT_DEPLOYMENT_TARGET = 25.2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VFIOUserPCIDriver/Info.plist;
 				INFOPLIST_KEY_OSBundleUsageDescription = "VFIO User PCI Driver";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = scottjg.VFIOUserHostApp.VFIOUserPCIDriver;
+				PRODUCT_BUNDLE_IDENTIFIER = com.geramyloveless.VFIOUserHostApp.VFIOUserPCIDriver;
 				PRODUCT_NAME = "$(inherited)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				RUN_CLANG_STATIC_ANALYZER = YES;
@@ -575,13 +575,13 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DEVELOPMENT_TEAM = YBQ9BU6Q6F;
 				DRIVERKIT_DEPLOYMENT_TARGET = 25.2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VFIOUserPCIDriver/Info.plist;
 				INFOPLIST_KEY_OSBundleUsageDescription = "VFIO User PCI Driver";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = scottjg.VFIOUserHostApp.VFIOUserPCIDriver;
+				PRODUCT_BUNDLE_IDENTIFIER = com.geramyloveless.VFIOUserHostApp.VFIOUserPCIDriver;
 				PRODUCT_NAME = "$(inherited)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				RUN_CLANG_STATIC_ANALYZER = YES;
@@ -599,12 +599,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DEVELOPMENT_TEAM = YBQ9BU6Q6F;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "scottjg.VFIOUserHostApp.qemu-vfio-apple";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.geramyloveless.VFIOUserHostApp.qemu-vfio-apple";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -619,12 +619,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = MTLNCV5G72;
+				DEVELOPMENT_TEAM = YBQ9BU6Q6F;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "scottjg.VFIOUserHostApp.qemu-vfio-apple";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.geramyloveless.VFIOUserHostApp.qemu-vfio-apple";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
