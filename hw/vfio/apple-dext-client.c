@@ -377,8 +377,8 @@ apple_dext_register_dma(io_connect_t connection,
 
     kr = IOConnectCallMethod(connection,
                              kSelectorRegisterDMARegion,
-                             input, 3,
                              NULL, 0,
+                             input, sizeof(input),
                              output, &outputCount,
                              NULL, NULL);
     if (kr != KERN_SUCCESS) {
