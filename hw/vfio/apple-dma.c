@@ -33,6 +33,7 @@
 #include "system/memory.h"
 
 #include "hw/pci/pci.h"
+#include <stdint.h>
 
 /* BAR0 register offsets */
 #define APPLE_DMA_REG_VERSION       0x00    /* R:  protocol version */
@@ -89,14 +90,14 @@
 
 typedef struct AppleDMAMapReq {
     uint64_t gpa;
-    uint32_t len;
+    uint64_t len;
     uint32_t flags;
 } QEMU_PACKED AppleDMAMapReq;
 
 typedef struct AppleDMAMapResp {
     uint64_t id;
     uint64_t dma_addr;
-    uint32_t dma_len;
+    uint64_t dma_len;
     uint32_t status;
 } QEMU_PACKED AppleDMAMapResp;
 
@@ -138,8 +139,8 @@ struct AppleDMAState {
 /* DMA backend operations                                              */
 /* ------------------------------------------------------------------ */
 
-static bool apple_dma_backend_map(AppleDMAState *s, uint64_t gpa, uint32_t size,
-                                  uint64_t *out_dma_addr, uint32_t *out_dma_len)
+static bool apple_dma_backend_map(AppleDMAState *s, uint64_t gpa, uint64_t size,
+                                  uint64_t *out_dma_addr, uint64_t *out_dma_len)
 {
     hwaddr map_len = size;
     void *hva;
@@ -171,12 +172,12 @@ static bool apple_dma_backend_map(AppleDMAState *s, uint64_t gpa, uint32_t size,
                          DMA_DIRECTION_TO_DEVICE, 0);
         if (kr != KERN_SUCCESS) {
             error_report("apple-dma: register_dma failed gpa=0x%" PRIx64
-                         " size=%" PRIu32 " kr=0x%x",
+                         " size=%" PRIu64 " kr=0x%x",
                          gpa, size, kr);
             return false;
         }
         *out_dma_addr = bus_addr;
-        *out_dma_len = (uint32_t)bus_len;
+        *out_dma_len = bus_len;
     } else {
         dma_memory_unmap(&address_space_memory, hva, map_len,
                          DMA_DIRECTION_TO_DEVICE, 0);
@@ -241,13 +242,13 @@ static void apple_dma_handle_map(AppleDMAState *s, uint64_t req_gpa,
     for (i = 0; i < count; i++) {
         uint64_t gpa = le64_to_cpu(reqs[i].gpa);
         uint64_t dma_addr = 0;
-        uint32_t dma_len = 0;
+        uint64_t dma_len = 0;
 
-        if (apple_dma_backend_map(s, gpa, le32_to_cpu(reqs[i].len),
+        if (apple_dma_backend_map(s, gpa, le64_to_cpu(reqs[i].len),
                                   &dma_addr, &dma_len)) {
             resps[i].id = cpu_to_le64(gpa);
             resps[i].dma_addr = cpu_to_le64(dma_addr);
-            resps[i].dma_len = cpu_to_le32(dma_len);
+            resps[i].dma_len = cpu_to_le64(dma_len);
             resps[i].status = cpu_to_le32(APPLE_DMA_S_OK);
         } else {
             resps[i].status = cpu_to_le32(APPLE_DMA_S_IOERR);

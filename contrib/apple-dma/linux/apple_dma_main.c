@@ -28,6 +28,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/version.h>
+#include <linux/types.h>
 
 #include <linux/hash.h>
 
@@ -108,14 +109,14 @@ struct apple_dma_cmd_page {
 
 struct apple_dma_map_req {
 	__le64 gpa;
-	__le32 len;
+	__le64 len;
 	__le32 flags;
 } __packed;
 
 struct apple_dma_map_resp {
 	__le64 iova;
 	__le64 dma_addr;
-	__le32 dma_len;
+	__le64 dma_len;
 	__le32 status;
 } __packed;
 
@@ -408,7 +409,7 @@ static int apple_dma_device_map(struct apple_dma_dev *ad,
 	u32 status;
 
 	req->gpa = cpu_to_le64(gpa);
-	req->len = cpu_to_le32(size);
+	req->len = cpu_to_le64(size);
 	req->flags = 0;
 	memset(resp, 0, sizeof(*resp));
 
@@ -420,7 +421,7 @@ static int apple_dma_device_map(struct apple_dma_dev *ad,
 
 	*out_iova = le64_to_cpu(resp->iova);
 	*out_dma  = (dma_addr_t)le64_to_cpu(resp->dma_addr);
-	*out_len  = le32_to_cpu(resp->dma_len);
+	*out_len  = le64_to_cpu(resp->dma_len);
 	return le32_to_cpu(resp->status) == S_OK ? 0 : -EIO;
 }
 
