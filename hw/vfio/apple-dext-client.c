@@ -360,11 +360,11 @@ apple_dext_claim(io_connect_t connection)
 
 kern_return_t
 apple_dext_register_dma(io_connect_t connection,
-                            uint64_t iova,
-                            uint64_t client_va,
-                            uint64_t size,
-                            uint64_t *out_bus_addr,
-                            uint64_t *out_bus_len)
+                             uint64_t iova,
+                             uint64_t client_va,
+                             uint64_t size,
+                             uint64_t *out_bus_addr,
+                             uint64_t *out_bus_len)
 {
     uint64_t input[3] = { iova, client_va, size };
     uint64_t output[3] = {0};
@@ -377,8 +377,8 @@ apple_dext_register_dma(io_connect_t connection,
 
     kr = IOConnectCallMethod(connection,
                              kSelectorRegisterDMARegion,
+                             input, 3,
                              NULL, 0,
-                             input, sizeof(input),
                              output, &outputCount,
                              NULL, NULL);
     if (kr != KERN_SUCCESS) {
