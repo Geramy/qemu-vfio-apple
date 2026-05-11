@@ -10,6 +10,7 @@
 #include "qemu/osdep.h"
 
 #include "apple-dext-client.h"
+#include "trace.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
@@ -382,6 +383,7 @@ apple_dext_register_dma(io_connect_t connection,
                              output, &outputCount,
                              NULL, NULL);
     if (kr != KERN_SUCCESS) {
+        trace_apple_dext_register_dma(iova, client_va, size, 0, 0, kr);
         return kr;
     }
 
@@ -392,6 +394,9 @@ apple_dext_register_dma(io_connect_t connection,
         *out_bus_len = output[2];
     }
 
+    trace_apple_dext_register_dma(iova, client_va, size,
+                                  (outputCount >= 2) ? output[1] : 0,
+                                  (outputCount >= 3) ? output[2] : 0, kr);
     return kIOReturnSuccess;
 }
 
@@ -476,17 +481,20 @@ apple_dext_unregister_dma(io_connect_t connection,
                               uint64_t iova)
 {
     uint64_t input[1] = { iova };
+    kern_return_t kr;
 
     if (connection == IO_OBJECT_NULL) {
         return kIOReturnBadArgument;
     }
 
-    return IOConnectCallMethod(connection,
-                               kSelectorUnregisterDMARegion,
-                               input, 1,
-                               NULL, 0,
-                               NULL, NULL,
-                               NULL, NULL);
+    kr = IOConnectCallMethod(connection,
+                             kSelectorUnregisterDMARegion,
+                             input, 1,
+                             NULL, 0,
+                             NULL, NULL,
+                             NULL, NULL);
+    trace_apple_dext_unregister_dma(iova, kr);
+    return kr;
 }
 
 kern_return_t
@@ -540,10 +548,13 @@ apple_dext_config_read(io_connect_t connection,
                              output, &outputCount,
                              NULL, NULL);
     if (kr != KERN_SUCCESS) {
+        trace_apple_dext_config_read((uint16_t)offset, (uint8_t)width, 0, kr);
         return kr;
     }
 
     *out_value = output[0];
+    trace_apple_dext_config_read((uint16_t)offset, (uint8_t)width,
+                                 (uint32_t)output[0], kr);
     return kIOReturnSuccess;
 }
 
@@ -554,17 +565,21 @@ apple_dext_config_write(io_connect_t connection,
                             uint64_t value)
 {
     uint64_t input[3] = { offset, width, value };
+    kern_return_t kr;
 
     if (connection == IO_OBJECT_NULL) {
         return kIOReturnBadArgument;
     }
 
-    return IOConnectCallMethod(connection,
-                               kSelectorConfigWrite,
-                               input, 3,
-                               NULL, 0,
-                               NULL, NULL,
-                               NULL, NULL);
+    kr = IOConnectCallMethod(connection,
+                             kSelectorConfigWrite,
+                             input, 3,
+                             NULL, 0,
+                             NULL, NULL,
+                             NULL, NULL);
+    trace_apple_dext_config_write((uint16_t)offset, (uint8_t)width,
+                                  (uint32_t)value, kr);
+    return kr;
 }
 
 kern_return_t
@@ -742,10 +757,12 @@ apple_dext_mmio_read(io_connect_t connection,
                              output, &outputCount,
                              NULL, NULL);
     if (kr != KERN_SUCCESS) {
+        trace_apple_dext_mmio_read(mem_idx, offset, (uint8_t)width, 0, kr);
         return kr;
     }
 
     *out_value = output[0];
+    trace_apple_dext_mmio_read(mem_idx, offset, (uint8_t)width, output[0], kr);
     return kIOReturnSuccess;
 }
 
@@ -757,17 +774,20 @@ apple_dext_mmio_write(io_connect_t connection,
                           uint64_t value)
 {
     uint64_t input[4] = { mem_idx, offset, width, value };
+    kern_return_t kr;
 
     if (connection == IO_OBJECT_NULL) {
         return kIOReturnBadArgument;
     }
 
-    return IOConnectCallMethod(connection,
-                               kSelectorMMIOWrite,
-                               input, 4,
-                               NULL, 0,
-                               NULL, NULL,
-                               NULL, NULL);
+    kr = IOConnectCallMethod(connection,
+                             kSelectorMMIOWrite,
+                             input, 4,
+                             NULL, 0,
+                             NULL, NULL,
+                             NULL, NULL);
+    trace_apple_dext_mmio_write(mem_idx, offset, (uint8_t)width, value, kr);
+    return kr;
 }
 
 kern_return_t

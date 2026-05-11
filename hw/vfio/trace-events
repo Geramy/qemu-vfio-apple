@@ -197,3 +197,23 @@ vfio_device_get_region_info_type(const char *name, int index, uint32_t type, uin
 vfio_device_reset_handler(void) ""
 vfio_device_attach(const char *name, int group_id) " (%s) group %d"
 vfio_device_detach(const char *name, int group_id) " (%s) group %d"
+
+# apple-dma.c - guest-issued DMA map/unmap batches and per-entry mappings
+apple_dma_doorbell(uint64_t cmd_gpa, uint32_t type, uint32_t count, uint64_t req_gpa, uint64_t resp_gpa) "cmd_gpa=0x%"PRIx64" type=%u count=%u req=0x%"PRIx64" resp=0x%"PRIx64
+apple_dma_handle_map_entry(uint32_t idx, uint64_t gpa, uint64_t req_len, uint64_t dma_addr, uint64_t dma_len, bool ok) "idx=%u gpa=0x%"PRIx64" req_len=%"PRIu64" -> bus=0x%"PRIx64" len=%"PRIu64" ok=%d"
+apple_dma_handle_unmap_entry(uint32_t idx, uint64_t id, uint32_t status) "idx=%u id=0x%"PRIx64" status=%u"
+apple_dma_backend_map_fail(uint64_t gpa, uint64_t size, const char *reason) "gpa=0x%"PRIx64" size=%"PRIu64" reason=%s"
+
+# apple-dext-client.c - DriverKit dext IOConnect selectors (DART mappings, MMIO, IRQ)
+apple_dext_register_dma(uint64_t iova, uint64_t client_va, uint64_t size, uint64_t bus_addr, uint64_t bus_len, int kr) "iova=0x%"PRIx64" client_va=0x%"PRIx64" size=%"PRIu64" -> bus=0x%"PRIx64" len=%"PRIu64" kr=0x%x"
+apple_dext_unregister_dma(uint64_t iova, int kr) "iova=0x%"PRIx64" kr=0x%x"
+apple_dext_mmio_read(uint8_t bar, uint64_t offset, uint8_t size, uint64_t value, int kr) "bar=%u off=0x%"PRIx64" sz=%u -> val=0x%"PRIx64" kr=0x%x"
+apple_dext_mmio_write(uint8_t bar, uint64_t offset, uint8_t size, uint64_t value, int kr) "bar=%u off=0x%"PRIx64" sz=%u val=0x%"PRIx64" kr=0x%x"
+apple_dext_config_read(uint16_t offset, uint8_t size, uint32_t value, int kr) "off=0x%x sz=%u -> val=0x%x kr=0x%x"
+apple_dext_config_write(uint16_t offset, uint8_t size, uint32_t value, int kr) "off=0x%x sz=%u val=0x%x kr=0x%x"
+apple_dext_interrupt(uint32_t vector) "vector=%u"
+
+# apple-device.c - GPU BAR MMIO slow path (only fires for non-mmap'd ranges:
+# MSI-X table, unaligned, or BARs explicitly routed via QEMU)
+apple_vfio_bar_read(uint8_t bar, uint64_t offset, uint32_t size, uint64_t value) "bar=%u off=0x%"PRIx64" sz=%u -> val=0x%"PRIx64
+apple_vfio_bar_write(uint8_t bar, uint64_t offset, uint32_t size, uint64_t value) "bar=%u off=0x%"PRIx64" sz=%u val=0x%"PRIx64

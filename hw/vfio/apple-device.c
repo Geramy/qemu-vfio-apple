@@ -23,6 +23,7 @@
 #include "qemu/host-pci-mmio.h"
 #include "qemu/main-loop.h"
 #include "qemu/units.h"
+#include "trace.h"
 
 typedef struct AppleVFIOSharedDext {
     io_connect_t conn;
@@ -542,6 +543,7 @@ static int apple_vfio_bar_read(VFIODevice *vbasedev, uint8_t nr, off_t off,
     value = host_pci_ldn_le_p(p, size);
     memcpy(data, &value, size);
 
+    trace_apple_vfio_bar_read(nr, (uint64_t)off, size, value);
     return size;
 }
 
@@ -691,6 +693,7 @@ static int apple_vfio_bar_write(VFIODevice *vbasedev, uint8_t nr, off_t off,
     p = (char *)bm->addr + off;
     host_pci_stn_le_p(p, size, value);
 
+    trace_apple_vfio_bar_write(nr, (uint64_t)off, size, value);
     return size;
 }
 
@@ -792,10 +795,15 @@ static int apple_vfio_region_map(VFIODevice *vbasedev, VFIORegion *region)
      * Use the pre-computed mmap regions — already split around the MSI-X
      * table/PBA hole by vfio_pci_fixup_msix_region() during realize.
      * We just need to fill in the host pointers from our dext mapping.
+     *
+     * If trace-bar-mmio=on, skip mmap registration. All BAR accesses then
+     * fall through to apple_vfio_bar_read/write and fire trace events.
      */
-    for (i = 0; i < region->nr_mmaps; i++) {
-        region->mmaps[i].mmap = (char *)local_addr + region->mmaps[i].offset;
-        vfio_region_register_mmap(region, i);
+    if (!adev->trace_bar_mmio) {
+        for (i = 0; i < region->nr_mmaps; i++) {
+            region->mmaps[i].mmap = (char *)local_addr + region->mmaps[i].offset;
+            vfio_region_register_mmap(region, i);
+        }
     }
 
     return 0;
@@ -1110,6 +1118,12 @@ static void apple_vfio_pci_finalize_fn(Object *obj)
 static const Property apple_vfio_pci_properties[] = {
     DEFINE_PROP_BOOL("dma-companion", VFIOApplePCIDevice,
                      use_dma_companion, false),
+    /*
+     * Debug-only: disable BAR mmap so every guest MMIO traps to QEMU and
+     * fires apple_vfio_bar_read/write trace events. Major performance hit.
+     */
+    DEFINE_PROP_BOOL("trace-bar-mmio", VFIOApplePCIDevice,
+                     trace_bar_mmio, false),
     DEFINE_PROP_SIZE("dma-bounce-size", VFIOApplePCIDevice,
                      dma_bounce_size, 64 * MiB),
     /*

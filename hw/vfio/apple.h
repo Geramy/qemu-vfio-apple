@@ -74,6 +74,12 @@ struct VFIOApplePCIDevice {
     DeviceState *dma_companion;
     bool dma_companion_autocreated;
     bool use_dma_companion;
+    /*
+     * When true, BARs are NOT mmap'd into the guest. Every guest BAR
+     * access traps to apple_vfio_bar_read/write so trace events fire
+     * on every MMIO. Huge performance penalty -- debug only.
+     */
+    bool trace_bar_mmio;
     uint64_t dma_bounce_size;
     VFIOAppleBounceBuffer *bounce;
     /*

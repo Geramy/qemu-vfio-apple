@@ -33,6 +33,7 @@
 #include "system/memory.h"
 
 #include "hw/pci/pci.h"
+#include "trace.h"
 #include <stdint.h>
 
 /* BAR0 register offsets */
@@ -152,6 +153,9 @@ static bool apple_dma_backend_map(AppleDMAState *s, uint64_t gpa, uint64_t size,
         if (hva) {
             dma_memory_unmap(&address_space_memory, hva, map_len,
                              DMA_DIRECTION_TO_DEVICE, 0);
+            trace_apple_dma_backend_map_fail(gpa, size, "short_map");
+        } else {
+            trace_apple_dma_backend_map_fail(gpa, size, "no_hva");
         }
         return false;
     }
@@ -241,11 +245,15 @@ static void apple_dma_handle_map(AppleDMAState *s, uint64_t req_gpa,
 
     for (i = 0; i < count; i++) {
         uint64_t gpa = le64_to_cpu(reqs[i].gpa);
+        uint64_t req_len = le64_to_cpu(reqs[i].len);
         uint64_t dma_addr = 0;
         uint64_t dma_len = 0;
+        bool map_ok;
 
-        if (apple_dma_backend_map(s, gpa, le64_to_cpu(reqs[i].len),
-                                  &dma_addr, &dma_len)) {
+        map_ok = apple_dma_backend_map(s, gpa, req_len, &dma_addr, &dma_len);
+        trace_apple_dma_handle_map_entry(i, gpa, req_len, dma_addr, dma_len,
+                                         map_ok);
+        if (map_ok) {
             resps[i].id = cpu_to_le64(gpa);
             resps[i].dma_addr = cpu_to_le64(dma_addr);
             resps[i].dma_len = cpu_to_le64(dma_len);
@@ -299,6 +307,7 @@ static void apple_dma_handle_unmap(AppleDMAState *s, uint64_t req_gpa,
         uint64_t id = le64_to_cpu(reqs[i].id);
         uint32_t status = apple_dma_backend_unmap(s, id);
 
+        trace_apple_dma_handle_unmap_entry(i, id, status);
         resps[i].id = cpu_to_le64(id);
         resps[i].status = cpu_to_le32(status);
         if (status != APPLE_DMA_S_OK) {
@@ -335,6 +344,8 @@ static void apple_dma_doorbell(AppleDMAState *s)
     count = ldl_le_p(cmd_buf + CMD_OFF_COUNT);
     req_gpa = ldq_le_p(cmd_buf + CMD_OFF_REQ_GPA);
     resp_gpa = ldq_le_p(cmd_buf + CMD_OFF_RESP_GPA);
+
+    trace_apple_dma_doorbell(s->cmd_gpa, type, count, req_gpa, resp_gpa);
 
     if (!count || count > s->max_entries || !req_gpa || !resp_gpa) {
         s->last_status = APPLE_DMA_S_INVAL;
