@@ -16,9 +16,13 @@
 
 #include <linux/kprobes.h>
 #include <linux/module.h>
+#include <linux/notifier.h>
 #include <linux/smp.h>
 #include <linux/string.h>
+#include <asm/debug-monitors.h>
+#include <asm/esr.h>
 #include <asm/page.h>
+#include <asm/ptrace.h>
 
 #include "dczid_patch.h"
 
@@ -29,6 +33,19 @@
 #define DC_ZVA_MASK	0xFFFFFFE0u
 #define DC_ZVA_VAL	0xD50B7420u	/* DC ZVA, Xt */
 #define NOP_INSN	0xD503201Fu
+
+/*
+ * BRK fallback for DC-ZVA sites that lack 3 trailing NOPs (Ubuntu stock
+ * kernels do not pad them).  We replace the single DC ZVA instruction
+ * with BRK #(0x4D40 | Rn) -- the high 11 bits identify our hook, the
+ * low 5 bits carry the register number from the original DC ZVA. A
+ * kernel break_hook decodes Rn, performs the equivalent 64-byte zero
+ * via STP XZR,XZR (which is safe on Apple Silicon device memory), and
+ * advances PC past the BRK.
+ */
+#define BRK_IMM_PREFIX	0x4D40u
+#define BRK_IMM_MASK	0x001Fu	/* low 5 bits are register number */
+#define BRK_INSN_FOR(rn)	(0xD4200000u | ((BRK_IMM_PREFIX | ((rn) & 0x1Fu)) << 5))
 
 /*
  * STP XZR, XZR, [Xn, #off] — zeros 16 bytes per instruction.
@@ -108,6 +125,59 @@ static const u32 stp_zr_insns[] = {
 	STP_ZR_48,
 };
 
+/*
+ * BRK handler: re-executes the zero that the original DC ZVA would have
+ * performed. Apple Silicon DC-ZVA block size is 64 bytes; we emit four
+ * 16-byte stores (STP XZR,XZR) which behave correctly on both Normal and
+ * Device memory.
+ */
+static int dczid_brk_handler(struct pt_regs *regs, unsigned long esr)
+{
+	unsigned int rn = esr & BRK_IMM_MASK;
+	unsigned long addr = pt_regs_read_reg(regs, rn) & ~0x3FUL;
+
+	/*
+	 * STP XZR, XZR zeros 16 bytes per pair. Unrolled to match the
+	 * 64-byte cache line we are emulating.
+	 */
+	asm volatile (
+		"stp xzr, xzr, [%0]\n\t"
+		"stp xzr, xzr, [%0, #16]\n\t"
+		"stp xzr, xzr, [%0, #32]\n\t"
+		"stp xzr, xzr, [%0, #48]\n\t"
+		:: "r" (addr) : "memory"
+	);
+
+	regs->pc += AARCH64_INSN_SIZE;
+	return DBG_HOOK_HANDLED;
+}
+
+static struct break_hook dczid_break_hook = {
+	.fn   = dczid_brk_handler,
+	.imm  = BRK_IMM_PREFIX,
+	.mask = BRK_IMM_MASK,
+};
+
+static bool dczid_brk_hook_registered;
+
+static void dczid_brk_register(void)
+{
+	if (dczid_brk_hook_registered)
+		return;
+	register_kernel_break_hook(&dczid_break_hook);
+	dczid_brk_hook_registered = true;
+	pr_info("apple_dma: BRK fallback hook registered (imm prefix 0x%x)\n",
+		BRK_IMM_PREFIX);
+}
+
+static void dczid_brk_unregister(void)
+{
+	if (!dczid_brk_hook_registered)
+		return;
+	unregister_kernel_break_hook(&dczid_break_hook);
+	dczid_brk_hook_registered = false;
+}
+
 static int dczid_scan_func(void *start, unsigned int len)
 {
 	u32 *p, *end;
@@ -153,8 +223,17 @@ static int dczid_replace_dczva(void *start, unsigned int len)
 			nops++;
 
 		if (nops < 3) {
-			pr_warn("apple_dma: DC ZVA at %pS (X%u) has %d trailing NOPs, need 3\n",
-				p, rn, nops);
+			/*
+			 * No NOP slack -- fall back to a single-instruction BRK
+			 * replacement. The break_hook re-issues the zero via STP.
+			 */
+			if (!dczid_record_patch_block(p, 1))
+				break;
+
+			dczid_write_insn(p, BRK_INSN_FOR(rn));
+			pr_info("apple_dma: replaced DC ZVA at %pS (X%u) with BRK fallback\n",
+				p, rn);
+			replaced++;
 			continue;
 		}
 
@@ -186,6 +265,60 @@ static void dczid_scan_range(void *start, unsigned int len, int *mrs, int *zva)
 	*zva += dczid_replace_dczva(start, len);
 }
 
+/*
+ * Scan a single loaded module's .text section for DC-ZVA and MRS-DCZID
+ * sites. The module loader keeps an array of memory regions; we only care
+ * about MOD_TEXT (executable kernel code).
+ */
+static void dczid_scan_module(struct module *mod, int *mrs, int *zva)
+{
+	void *text_start;
+	unsigned int text_size;
+
+	if (!mod || mod == THIS_MODULE)
+		return;
+
+	text_start = mod->mem[MOD_TEXT].base;
+	text_size  = mod->mem[MOD_TEXT].size;
+
+	if (!text_start || !text_size)
+		return;
+
+	pr_info("apple_dma: scanning module %s text %p len %u\n",
+		mod->name, text_start, text_size);
+	dczid_scan_range(text_start, text_size, mrs, zva);
+}
+
+/*
+ * Module load notifier: when a new module appears, scan it before its
+ * code can ever run code that DC-ZVAs onto a passthrough BAR. We only
+ * act on COMING events; module init runs AFTER our notifier returns, so
+ * the scan-and-patch happens before any module-init DC-ZVA could fire.
+ */
+static int dczid_module_notifier(struct notifier_block *nb,
+				 unsigned long action, void *data)
+{
+	struct module *mod = data;
+	int mrs = 0, zva = 0;
+
+	if (action != MODULE_STATE_COMING)
+		return NOTIFY_DONE;
+
+	dczid_scan_module(mod, &mrs, &zva);
+	if (mrs || zva) {
+		on_each_cpu(dczid_flush_all_cpus, NULL, 1);
+		pr_info("apple_dma: patched %d MRS + %d DC-ZVA in incoming module %s\n",
+			mrs, zva, mod->name);
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block dczid_module_nb = {
+	.notifier_call = dczid_module_notifier,
+};
+
+static bool dczid_module_nb_registered;
+
 int dczid_patch_apply(void)
 {
 	unsigned long stext, etext;
@@ -196,6 +329,12 @@ int dczid_patch_apply(void)
 	ret = resolve_patch_text();
 	if (ret)
 		return ret;
+
+	/*
+	 * Register the BRK fallback hook BEFORE we patch anything. If the
+	 * hook isn't live and a BRK fires, the kernel oopses. Order matters.
+	 */
+	dczid_brk_register();
 
 	stext = kln("_stext");
 	etext = kln("_etext");
@@ -212,15 +351,57 @@ int dczid_patch_apply(void)
 		dczid_scan_range((void *)stext, text_len, &mrs, &zva);
 	}
 
+	/*
+	 * Scan already-loaded modules. The amdgpu module in particular can
+	 * emit DC-ZVA inline for large memset() with constant size, and our
+	 * kernel-text scan does not cover module text.
+	 */
+	{
+		struct module *mod;
+		struct mutex *mod_mutex = (struct mutex *)kln("module_mutex");
+		struct list_head *mod_list = (struct list_head *)kln("modules");
+		int m_mrs = 0, m_zva = 0;
+
+		if (mod_mutex && mod_list) {
+			mutex_lock(mod_mutex);
+			list_for_each_entry(mod, mod_list, list)
+				dczid_scan_module(mod, &m_mrs, &m_zva);
+			mutex_unlock(mod_mutex);
+			mrs += m_mrs;
+			zva += m_zva;
+			pr_info("apple_dma: patched %d MRS + %d DC-ZVA sites in already-loaded modules\n",
+				m_mrs, m_zva);
+		} else {
+			pr_warn("apple_dma: cannot resolve module_mutex/modules; skipping module text scan\n");
+		}
+	}
+
+	/*
+	 * Catch modules that load after we did. The notifier fires on
+	 * MODULE_STATE_COMING, before the new module's init runs.
+	 */
+	if (!dczid_module_nb_registered) {
+		ret = register_module_notifier(&dczid_module_nb);
+		if (ret)
+			pr_warn("apple_dma: register_module_notifier failed: %d\n", ret);
+		else
+			dczid_module_nb_registered = true;
+	}
+
 	if (mrs || zva)
 		on_each_cpu(dczid_flush_all_cpus, NULL, 1);
-	pr_info("apple_dma: patched %d MRS + %d DC-ZVA sites\n", mrs, zva);
+	pr_info("apple_dma: patched %d MRS + %d DC-ZVA sites (total)\n", mrs, zva);
 	return 0;
 }
 
 void dczid_patch_revert(void)
 {
 	unsigned int i;
+
+	if (dczid_module_nb_registered) {
+		unregister_module_notifier(&dczid_module_nb);
+		dczid_module_nb_registered = false;
+	}
 
 	for (i = 0; i < dczid_patch_count; i++)
 		dczid_write_insn(dczid_patches[i].addr,
@@ -230,4 +411,11 @@ void dczid_patch_revert(void)
 		pr_info("apple_dma: restored %d text patches\n",
 			dczid_patch_count);
 	dczid_patch_count = 0;
+
+	/*
+	 * BRK hook must be unregistered LAST. Any remaining patched BRK
+	 * instructions would oops otherwise -- but at this point we've
+	 * already reverted them, so it's safe.
+	 */
+	dczid_brk_unregister();
 }
