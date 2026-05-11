@@ -358,19 +358,16 @@ func launchVM(base: URL, opts: Options) throws {
 
     if opts.runAsRoot {
         log("running qemu-system-aarch64 under sudo (may prompt for password)")
-        // For sudo we exec() directly instead of going through Swift's
-        // Process(), because Process() doesn't pass the controlling TTY
-        // through to the child in a way that lets sudo's password prompt
-        // actually read keystrokes. The prompt shows on stdout but
-        // input never reaches it and ^C gets eaten by our DispatchSource.
-        // exec-ing replaces us with sudo, which owns the TTY natively
-        // and handles signals the normal terminal way.
-        try execReplacingSelf(executable, argv: argv)
-        return   // execReplacingSelf only returns on failure (throws)
+    } else {
+        log("starting qemu-system-aarch64")
     }
-
-    log("starting qemu-system-aarch64")
-    try execQemu(executable, argv: argv)
+    // exec() replaces this process so qemu inherits our controlling TTY
+    // and foreground process group directly. Going through Process() /
+    // posix_spawn puts qemu in a separate pgrp; when it then calls
+    // tcsetattr() in stdio_chr_open the kernel sends SIGTTOU and the VM
+    // hangs before boot. Same reasoning applies to sudo's password prompt
+    // (it needs to own the TTY natively to read keystrokes).
+    try execReplacingSelf(executable, argv: argv)
 }
 
 /// exec() the given binary, replacing this process. Only returns on
@@ -598,55 +595,3 @@ private func shellQuote(_ s: String) -> String {
     return "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }
 
-// MARK: - Exec
-
-/// Exec the given binary (qemu-system-aarch64 directly, or sudo with
-/// qemu-system-aarch64 as its target for --sudo) in the current
-/// process. We use Process() rather than posix_spawn because we want to
-/// wait for the child and forward signals; installing signal handlers
-/// around Process is simpler than writing a sigaction + waitpid loop
-/// manually. qemu itself handles SIGINT on the monitor by shutting down
-/// the guest; sudo forwards signals to its child so the wrapping
-/// doesn't change behaviour.
-private func execQemu(_ binary: URL, argv: [String]) throws {
-    let task = Process()
-    task.executableURL = binary
-    task.arguments = argv
-    task.standardInput  = FileHandle.standardInput
-    task.standardOutput = FileHandle.standardOutput
-    task.standardError  = FileHandle.standardError
-
-    // Preserve the user's environment (PATH etc.) so any hooks qemu
-    // execs (vmnet helpers, display subprocesses) behave normally.
-    task.environment = ProcessInfo.processInfo.environment
-
-    // Forward ^C / SIGTERM to the child. Without this, hitting ^C in
-    // the parent terminal would orphan qemu and leave it running.
-    let sigSources: [DispatchSourceSignal] = [SIGINT, SIGTERM, SIGHUP].map { sig in
-        signal(sig, SIG_IGN)   // let our DispatchSource catch it
-        let src = DispatchSource.makeSignalSource(signal: sig, queue: .global())
-        src.setEventHandler { [weak task] in
-            task?.interrupt()
-        }
-        src.resume()
-        return src
-    }
-
-    do {
-        try task.run()
-    } catch {
-        throw LaunchError.qemuLaunchFailed(error.localizedDescription)
-    }
-    task.waitUntilExit()
-
-    for src in sigSources {
-        src.cancel()
-    }
-
-    if task.terminationStatus != 0 {
-        // Non-zero exits are common (e.g. user quits the VM via the
-        // monitor, qemu returns the guest's reason code). We still
-        // surface the code for scripting but don't warn noisily.
-        exit(task.terminationStatus)
-    }
-}
