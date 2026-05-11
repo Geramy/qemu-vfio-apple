@@ -20,3 +20,15 @@ GTAGS
 *.swp
 *.patch
 *.gcov
+
+# macOS
+.DS_Store
+
+# Local QEMU launch state
+qmp.sock
+
+# Trace capture output (binary + decoded text traces; can be many GB each)
+traces/
+
+# Environment-specific disk images
+*.qcow2
