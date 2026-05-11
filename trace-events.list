@@ -1,0 +1,42 @@
+# Focused capture set for TRACE_BAR_MMIO=1 runs.
+#
+# When BAR mmap is disabled, every guest MMIO traps to QEMU and the BAR
+# trace points fire. AMDGPU init does millions of register accesses per
+# boot -- enabling everything (*) would overflow the ring buffer in
+# seconds.
+#
+# This list captures the PSP/SMU handshake without drowning in noise.
+# To go back to full firehose:    cp trace-events-firehose.list trace-events.list
+# To go to known-safe minimal:    cp trace-events-safe.list trace-events.list
+
+# apple-dma path -- DMA mappings via DriverKit dext
+apple_dma_*
+apple_dext_register_dma
+apple_dext_unregister_dma
+apple_dext_config_read
+apple_dext_config_write
+apple_dext_interrupt
+
+# THE NEW HOTNESS: BAR MMIO slow path (only useful with TRACE_BAR_MMIO=1)
+apple_vfio_bar_read
+apple_vfio_bar_write
+
+# VFIO IRQ + reset (low volume, high signal)
+vfio_msi_interrupt
+vfio_msi_setup
+vfio_msi_enable
+vfio_msix_vector_do_use
+vfio_msix_vector_release
+vfio_intx_interrupt
+vfio_pci_reset
+vfio_pci_reset_flr
+vfio_pci_reset_pm
+vfio_pci_hot_reset
+vfio_pci_hot_reset_result
+
+# VFIO IOMMU mapping notifications (boot-time + on remap)
+vfio_listener_region_add_iommu
+vfio_listener_region_del_iommu
+vfio_listener_region_add_ram
+vfio_listener_region_del
+vfio_iommu_map_notify

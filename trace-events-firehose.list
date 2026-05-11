@@ -1,0 +1,11 @@
+# FULL TRACE: every registered QEMU trace event.
+#
+# Use `*` to match all events. The simple backend writes them to a
+# 1024-entry ring buffer which a worker thread flushes ~every 100 ms.
+# If event rate exceeds drain rate, some events will be dropped
+# (a "Lost N events" line appears in the converted text trace).
+#
+# This is high-overhead. If GPU init starts failing again, switch to
+# the curated set with:
+#   cp trace-events-safe.list trace-events.list
+*

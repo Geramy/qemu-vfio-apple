@@ -1,0 +1,45 @@
+# Events to capture when launching with `./launch.sh trace`.
+# Globs are accepted. One pattern per line. '#' starts a comment.
+#
+# Custom apple-dma path (GPA -> bus_addr translation via DriverKit dext):
+apple_dma_doorbell
+apple_dma_handle_map_entry
+apple_dma_handle_unmap_entry
+apple_dma_backend_map_fail
+apple_dext_register_dma
+apple_dext_unregister_dma
+
+# VFIO IOMMU mapping notifications (host-side region adds/removes):
+vfio_listener_region_add_iommu
+vfio_listener_region_del_iommu
+vfio_listener_region_add_ram
+vfio_listener_region_del
+vfio_iommu_map_notify
+vfio_listener_region_add_no_dma_map
+
+# MSI / MSI-X setup events (low volume, safe at boot):
+vfio_msix_vector_do_use
+vfio_msix_vector_release
+vfio_intx_interrupt
+
+# vfio_msi_interrupt fires on EVERY GPU interrupt -- many thousands/sec.
+# Enabling it at boot can starve the VFIO worker and cause GPU init timeouts.
+# Uncomment ONLY when you want to capture the IRQ stream, and ideally arm it
+# at runtime via `./trace-control.sh on vfio_msi_interrupt` AFTER the guest
+# driver has finished init.
+#vfio_msi_interrupt
+
+# VFIO PCI device reset events (correlate with GPU hangs):
+vfio_pci_reset
+vfio_pci_reset_flr
+vfio_pci_reset_pm
+vfio_pci_hot_reset
+vfio_pci_hot_reset_result
+
+# Uncomment for verbose capture (HIGH VOLUME):
+#apple_dext_mmio_read
+#apple_dext_mmio_write
+#apple_dext_config_read
+#apple_dext_config_write
+#vfio_pci_read_config
+#vfio_pci_write_config
