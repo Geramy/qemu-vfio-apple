@@ -19,10 +19,7 @@
 #include <linux/notifier.h>
 #include <linux/smp.h>
 #include <linux/string.h>
-#include <asm/debug-monitors.h>
-#include <asm/esr.h>
 #include <asm/page.h>
-#include <asm/ptrace.h>
 
 #include "dczid_patch.h"
 
@@ -35,17 +32,15 @@
 #define NOP_INSN	0xD503201Fu
 
 /*
- * BRK fallback for DC-ZVA sites that lack 3 trailing NOPs (Ubuntu stock
- * kernels do not pad them).  We replace the single DC ZVA instruction
- * with BRK #(0x4D40 | Rn) -- the high 11 bits identify our hook, the
- * low 5 bits carry the register number from the original DC ZVA. A
- * kernel break_hook decodes Rn, performs the equivalent 64-byte zero
- * via STP XZR,XZR (which is safe on Apple Silicon device memory), and
- * advances PC past the BRK.
+ * BRK fallback for DC-ZVA sites that lack 3 trailing NOPs was the
+ * intended path here, but the kernel's register_kernel_break_hook()
+ * isn't EXPORT_SYMBOL'd on this Ubuntu kernel (no entry in
+ * /proc/kallsyms). The code below is kept disabled behind
+ * APPLE_DMA_BRK_FALLBACK so it's trivial to re-enable once we wire up
+ * an alternative (kprobes, or a future kernel that exports the API).
+ * For now: when slack is absent, we log + skip and rely on the MRS
+ * patch + module scan to keep the DC-ZVA path from ever being reached.
  */
-#define BRK_IMM_PREFIX	0x4D40u
-#define BRK_IMM_MASK	0x001Fu	/* low 5 bits are register number */
-#define BRK_INSN_FOR(rn)	(0xD4200000u | ((BRK_IMM_PREFIX | ((rn) & 0x1Fu)) << 5))
 
 /*
  * STP XZR, XZR, [Xn, #off] — zeros 16 bytes per instruction.
@@ -125,58 +120,7 @@ static const u32 stp_zr_insns[] = {
 	STP_ZR_48,
 };
 
-/*
- * BRK handler: re-executes the zero that the original DC ZVA would have
- * performed. Apple Silicon DC-ZVA block size is 64 bytes; we emit four
- * 16-byte stores (STP XZR,XZR) which behave correctly on both Normal and
- * Device memory.
- */
-static int dczid_brk_handler(struct pt_regs *regs, unsigned long esr)
-{
-	unsigned int rn = esr & BRK_IMM_MASK;
-	unsigned long addr = pt_regs_read_reg(regs, rn) & ~0x3FUL;
-
-	/*
-	 * STP XZR, XZR zeros 16 bytes per pair. Unrolled to match the
-	 * 64-byte cache line we are emulating.
-	 */
-	asm volatile (
-		"stp xzr, xzr, [%0]\n\t"
-		"stp xzr, xzr, [%0, #16]\n\t"
-		"stp xzr, xzr, [%0, #32]\n\t"
-		"stp xzr, xzr, [%0, #48]\n\t"
-		:: "r" (addr) : "memory"
-	);
-
-	regs->pc += AARCH64_INSN_SIZE;
-	return DBG_HOOK_HANDLED;
-}
-
-static struct break_hook dczid_break_hook = {
-	.fn   = dczid_brk_handler,
-	.imm  = BRK_IMM_PREFIX,
-	.mask = BRK_IMM_MASK,
-};
-
-static bool dczid_brk_hook_registered;
-
-static void dczid_brk_register(void)
-{
-	if (dczid_brk_hook_registered)
-		return;
-	register_kernel_break_hook(&dczid_break_hook);
-	dczid_brk_hook_registered = true;
-	pr_info("apple_dma: BRK fallback hook registered (imm prefix 0x%x)\n",
-		BRK_IMM_PREFIX);
-}
-
-static void dczid_brk_unregister(void)
-{
-	if (!dczid_brk_hook_registered)
-		return;
-	unregister_kernel_break_hook(&dczid_break_hook);
-	dczid_brk_hook_registered = false;
-}
+/* BRK runtime hook intentionally absent on this kernel -- see comment above. */
 
 static int dczid_scan_func(void *start, unsigned int len)
 {
@@ -223,17 +167,8 @@ static int dczid_replace_dczva(void *start, unsigned int len)
 			nops++;
 
 		if (nops < 3) {
-			/*
-			 * No NOP slack -- fall back to a single-instruction BRK
-			 * replacement. The break_hook re-issues the zero via STP.
-			 */
-			if (!dczid_record_patch_block(p, 1))
-				break;
-
-			dczid_write_insn(p, BRK_INSN_FOR(rn));
-			pr_info("apple_dma: replaced DC ZVA at %pS (X%u) with BRK fallback\n",
-				p, rn);
-			replaced++;
+			pr_warn("apple_dma: DC ZVA at %pS (X%u) has %d trailing NOPs, need 3 -- leaving in place; relying on MRS patch + module scan\n",
+				p, rn, nops);
 			continue;
 		}
 
@@ -330,12 +265,6 @@ int dczid_patch_apply(void)
 	if (ret)
 		return ret;
 
-	/*
-	 * Register the BRK fallback hook BEFORE we patch anything. If the
-	 * hook isn't live and a BRK fires, the kernel oopses. Order matters.
-	 */
-	dczid_brk_register();
-
 	stext = kln("_stext");
 	etext = kln("_etext");
 
@@ -411,11 +340,4 @@ void dczid_patch_revert(void)
 		pr_info("apple_dma: restored %d text patches\n",
 			dczid_patch_count);
 	dczid_patch_count = 0;
-
-	/*
-	 * BRK hook must be unregistered LAST. Any remaining patched BRK
-	 * instructions would oops otherwise -- but at this point we've
-	 * already reverted them, so it's safe.
-	 */
-	dczid_brk_unregister();
 }
