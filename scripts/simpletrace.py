@@ -55,7 +55,11 @@ def get_mapping(fobj):
 def read_record(fobj):
     """Deserialize a trace record from a file into a tuple (event_num, timestamp, pid, args)."""
     event_id, timestamp_ns, record_length, record_pid = read_header(fobj, rec_header_fmt)
-    args_payload = fobj.read(record_length - rec_header_fmt_len)
+    payload_len = record_length - rec_header_fmt_len
+    if payload_len < 0:
+        # Truncated/corrupt record (common when QEMU exited mid-write).
+        raise EOFError(f'Truncated record: claimed length {record_length} < header size {rec_header_fmt_len}')
+    args_payload = fobj.read(payload_len)
     return (event_id, timestamp_ns, record_pid, args_payload)
 
 def read_trace_header(fobj):
@@ -103,7 +107,11 @@ def read_trace_records(events, fobj, read_header):
             event_id, event_name = get_mapping(fobj)
             event_id_to_name[event_id] = event_name
         else:
-            event_id, timestamp_ns, pid, args_payload = read_record(fobj)
+            try:
+                event_id, timestamp_ns, pid, args_payload = read_record(fobj)
+            except EOFError:
+                # Trailing truncated record from QEMU exit mid-write.
+                break
             event_name = event_id_to_name[event_id]
 
             try:

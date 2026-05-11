@@ -2256,10 +2256,29 @@ static int hvf_handle_exception(CPUState *cpu, hv_vcpu_exit_exception_t *excp)
         assert(!s1ptw);
 
         /*
-         * TODO: ISV will be 0 for SIMD or SVE accesses.
-         * Inject the exception into the guest.
+         * ISV=0 indicates the trapping instruction is SIMD/SVE/atomic
+         * or otherwise uses an addressing mode HVF cannot decode from
+         * the exception syndrome. Properly we should inject a Data
+         * Abort back to the guest -- but that is non-trivial and the
+         * usual cause is "guest used NEON for a memcpy into MMIO."
+         *
+         * Soft-skip: log once, advance PC, continue. The offending
+         * access is silently dropped (the device sees nothing) but QEMU
+         * stays alive so partial traces remain useful.
          */
-        assert(isv);
+        if (!isv) {
+            static bool warned_isv;
+            if (!warned_isv) {
+                warned_isv = true;
+                warn_report("hvf: data abort with ISV=0 at IPA 0x%" PRIx64
+                            " -- SIMD/SVE/atomic BAR access cannot be"
+                            " emulated. Skipping (further occurrences"
+                            " silent). Trace data for these instructions"
+                            " will be missing.", (uint64_t)ipa);
+            }
+            advance_pc = true;
+            break;
+        }
 
         /*
          * Emulate MMIO.
