@@ -29,6 +29,14 @@ if [ ! -f "$WIN_DISK" ]; then
   echo "ERROR: $WIN_DISK not found. Run ./launch-windows-install.sh first." >&2
   exit 1
 fi
+
+# Safety: refuse to boot if WIN_DISK happens to point at a Linux disk.
+case "$(basename "$WIN_DISK")" in
+  safety_overlay.qcow2|my_linux_ssd.qcow2)
+    echo "ERROR: WIN_DISK is set to a Linux disk ($WIN_DISK). Refusing to launch." >&2
+    exit 1
+    ;;
+esac
 if [ ! -f "$UEFI_VARS" ]; then
   echo "ERROR: $UEFI_VARS not found. Run launch-windows-install.sh once first." >&2
   exit 1

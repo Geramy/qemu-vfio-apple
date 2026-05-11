@@ -42,6 +42,15 @@ if [ -z "$WIN_ISO" ] || [ ! -f "$WIN_ISO" ]; then
   echo "  Set WIN_ISO=/path/to/Win11_*ARM*.iso or drop it in ~/Downloads/" >&2
   exit 1
 fi
+
+# Safety: refuse to clobber the Linux disks.
+case "$(basename "$WIN_DISK")" in
+  safety_overlay.qcow2|my_linux_ssd.qcow2)
+    echo "ERROR: WIN_DISK points at a Linux disk ($WIN_DISK). Refusing to overwrite." >&2
+    echo "       Unset WIN_DISK or pick a different filename." >&2
+    exit 1
+    ;;
+esac
 if [ ! -f "$VIRTIO_ISO" ]; then
   echo "ERROR: virtio-win.iso not found at $VIRTIO_ISO" >&2
   echo "  Download: curl -L -o ~/Downloads/virtio-win.iso https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso" >&2
