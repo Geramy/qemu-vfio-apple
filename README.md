@@ -83,6 +83,7 @@ On first launch from `/Applications`:
 5. Open a new terminal and run `qemu-vfio-apple driver-status` to verify the driver is installed
 6. Run `qemu-vfio-apple list-devices` to confirm that your eGPU is recognized and the driver attached.
 7. Run `qemu-vfio-apple run` to start the VM with your eGPU.
+8. Sign into the Ubuntu user with the password 'ubuntu'
 
 ## Code layout
 
