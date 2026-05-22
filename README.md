@@ -78,12 +78,12 @@ On first launch from `/Applications`:
 2. macOS shows a notification: **"System Extension Blocked"**. Open
    **System Settings → Privacy & Security**, scroll to the bottom, and
    click **Allow** next to the entry for `VFIOUserPCIDriver`.
-3. macOS may require a restart before the dext is fully active.
-4. Select the option to install the CLI tools.
-5. You can quit the app.
-6. Open a new terminal and run `qemu-vfio-apple driver-status` to verify the driver is installed
-7. Run `qemu-vfio-apple list-devices` to confirm that your eGPU is recognized and the driver attached.
+3. Select the option to install the CLI tools.
+4. You can quit the app.
+5. Open a new terminal and run `qemu-vfio-apple driver-status` to verify the driver is installed
+6. Run `qemu-vfio-apple list-devices` to confirm that your eGPU is recognized and the driver attached.
 7. Run `qemu-vfio-apple run` to start the VM with your eGPU.
+8. Sign into the Ubuntu user with the password 'ubuntu'
 
 ## Code layout
 
