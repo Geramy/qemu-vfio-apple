@@ -1,0 +1,72 @@
+From 6461b3be880698c0020d2fe24730367e4da30162 Mon Sep 17 00:00:00 2001
+From: Geramy <geramy@local>
+Date: Tue, 12 May 2026 21:28:40 -0700
+Subject: [PATCH] amdgpu: small-BAR fallback for Apple Silicon TB5 passthrough
+
+When the host has a tiny prefetchable memory window (e.g. ~260MB on each
+Apple Silicon TB5 downstream port), rebar cannot grow BAR0 to match the
+VRAM size. The existing code releases BAR0/BAR2, then pci_resize_resource
+fails, leaving them IORESOURCE_UNSET, and amdgpu_device_resize_fb_bar
+returns -ENODEV -- which fails sw_init of gmc_v12_0.
+
+Detect this case up front (no rebar size advertised beyond current) and
+keep the current BAR assignment, clamping visible_vram_size to BAR len so
+TTM only CPU-maps what is reachable. This is the same strategy
+tinygrad/AM uses to bring up RDNA3/RDNA4 cards over USB4/TB5 on macOS.
+
+Co-developed-with: tinygrad/AM observations
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 37 ++++++++++++++++++++++
+ 1 file changed, 37 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 6d8531f..b202781 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1844,6 +1844,43 @@ int amdgpu_device_resize_fb_bar(struct amdgpu_device *adev)
+ 	    (pci_resource_len(adev->pdev, 0) >= adev->gmc.real_vram_size))
+ 		return 0;
+ 
++	/*
++	 * Small-BAR fallback (Apple Silicon Thunderbolt 5 passthrough).
++	 *
++	 * Compare the rebar capability's MAX advertised size (in bytes) to the
++	 * current BAR0 length. If we can't actually grow, short-circuit:
++	 * releasing BAR0/BAR2 below without a successful resize leaves them
++	 * IORESOURCE_UNSET and the function returns -ENODEV.
++	 *
++	 * NOTE: we deliberately do NOT use pci_rebar_get_possible_sizes() bitmap
++	 * for the check. QEMU's vfio_setup_rebar_ecap rewrites the rebar
++	 * Capability Register to advertise sizes based on the rebar Control
++	 * Register's size field, which can disagree with pci_resource_len(0)
++	 * (the BAR was programmed to a different size than what rebar ctrl
++	 * reports). A direct bytes comparison is the source of truth.
++	 *
++	 * Clamp visible_vram_size to BAR len so TTM only CPU-maps what we can
++	 * reach; non-visible VRAM is reached via SDMA, the same approach
++	 * tinygrad's userspace AM driver uses on this exact hardware.
++	 */
++	{
++		int max_size = pci_rebar_get_max_size(adev->pdev, 0);
++		u64 bar_len = pci_resource_len(adev->pdev, 0);
++		u64 max_bytes = (max_size >= 0) ? (1ULL << (max_size + 20)) : 0;
++
++		if (max_bytes <= bar_len) {
++			dev_info(adev->dev,
++				 "small-BAR mode: BAR0=%lluM, VRAM=%lluM, "
++				 "rebar max=%lluM (cannot grow) -- skipping resize\n",
++				 bar_len >> 20,
++				 adev->gmc.real_vram_size >> 20,
++				 max_bytes >> 20);
++			if (adev->gmc.visible_vram_size > bar_len)
++				adev->gmc.visible_vram_size = bar_len;
++			return 0;
++		}
++	}
++
+ 	/* Check if the root BUS has 64bit memory resources */
+ 	root = adev->pdev->bus;
+ 	while (root->parent)
+-- 
+2.53.0
+

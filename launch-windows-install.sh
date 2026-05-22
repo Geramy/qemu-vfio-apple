@@ -56,7 +56,13 @@ if [ ! -f "$VIRTIO_ISO" ]; then
   echo "  Download: curl -L -o ~/Downloads/virtio-win.iso https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso" >&2
   exit 1
 fi
-if ! command -v swtpm >/dev/null; then
+# NOTE: tpm-tis-device on Apple Silicon HVF fails with HV_BAD_ARGUMENT (the TPM
+# MMIO region size doesn't satisfy HVF's 16KB page-alignment requirement).
+# Workaround: launch without a virtual TPM, then bypass the Win11 TPM check at
+# the installer screen (Shift+F10 -> regedit -> HKLM\SYSTEM\Setup\LabConfig\
+# BypassTPMCheck=1, BypassSecureBootCheck=1, BypassRAMCheck=1).
+USE_TPM=0
+if [ "$USE_TPM" = "1" ] && ! command -v swtpm >/dev/null; then
   echo "ERROR: swtpm not installed. Install with: brew install swtpm" >&2
   exit 1
 fi
@@ -75,56 +81,82 @@ if [ ! -f "$UEFI_VARS" ]; then
   dd if=/dev/zero of="$UEFI_VARS" bs=1m count=64 2>/dev/null
 fi
 
-# Start swtpm in a per-launch socket directory.
-TPM_DIR="$(mktemp -d)"
-trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$TPM_DIR"' EXIT
-
-swtpm socket \
-  --tpm2 \
-  --tpmstate "dir=$TPM_DIR,mode=0600" \
-  --ctrl "type=unixio,path=$TPM_DIR/swtpm-sock" \
-  --log "level=20" \
-  --terminate &
-
-# Wait for swtpm socket to appear.
-for _ in $(seq 1 50); do
-  [ -S "$TPM_DIR/swtpm-sock" ] && break
-  sleep 0.1
-done
-if [ ! -S "$TPM_DIR/swtpm-sock" ]; then
-  echo "ERROR: swtpm did not start within 5 seconds" >&2
-  exit 1
+TPM_DIR=""
+TPM_ARGS=()
+if [ "$USE_TPM" = "1" ]; then
+  TPM_DIR="$(mktemp -d)"
+  trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$TPM_DIR"' EXIT
+  swtpm socket \
+    --tpm2 \
+    --tpmstate "dir=$TPM_DIR,mode=0600" \
+    --ctrl "type=unixio,path=$TPM_DIR/swtpm-sock" \
+    --log "level=20" \
+    --terminate &
+  for _ in $(seq 1 50); do
+    [ -S "$TPM_DIR/swtpm-sock" ] && break
+    sleep 0.1
+  done
+  TPM_ARGS=(
+    -chardev "socket,id=chrtpm,path=$TPM_DIR/swtpm-sock"
+    -tpmdev emulator,id=tpm0,chardev=chrtpm
+    -device tpm-tis-device,tpmdev=tpm0
+  )
 fi
 
 echo "==> Booting Windows installer"
 echo "    Windows ISO: $WIN_ISO"
 echo "    VirtIO ISO:  $VIRTIO_ISO"
 echo "    Install to:  $WIN_DISK ($WIN_DISK_SZ)"
-echo "    TPM socket:  $TPM_DIR/swtpm-sock"
+if [ "$USE_TPM" = "1" ]; then echo "    TPM socket:  $TPM_DIR/swtpm-sock"; else
+  echo "    TPM:         DISABLED (HVF aarch64 limitation -- bypass in installer)"; fi
+echo ""
+echo "    TPM BYPASS: at the first installer screen press Shift+F10, then:"
+echo "       regedit"
+echo "       HKLM\\SYSTEM\\Setup -> right-click -> New -> Key 'LabConfig'"
+echo "       In LabConfig, create DWORDs all set to 1:"
+echo "         BypassTPMCheck  BypassSecureBootCheck  BypassRAMCheck"
+echo "       Close regedit, close cmd. Resume install."
 echo ""
 
-exec ./build/qemu-system-aarch64 \
-  -machine virt,highmem=on,memory-backend=pc.ram \
-  -accel hvf,tso=on \
-  -cpu host \
-  -smp 4 \
-  -m 8G \
-  -object memory-backend-ram,id=pc.ram,size=8G,prealloc=on,share=off \
-  -drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd \
-  -drive if=pflash,format=raw,file="$UEFI_VARS" \
-  -device virtio-gpu-pci \
-  -display cocoa \
-  -device qemu-xhci,id=xhci \
-  -device usb-kbd,bus=xhci.0 \
-  -device usb-tablet,bus=xhci.0 \
-  -chardev "socket,id=chrtpm,path=$TPM_DIR/swtpm-sock" \
-  -tpmdev emulator,id=tpm0,chardev=chrtpm \
-  -device tpm-tis-device,tpmdev=tpm0 \
-  -drive "if=none,id=hd0,file=$WIN_DISK,format=qcow2,cache=writeback,discard=unmap" \
-  -device virtio-blk-pci,drive=hd0,bootindex=2 \
-  -drive "if=none,id=cd0,file=$WIN_ISO,format=raw,media=cdrom,readonly=on" \
-  -device usb-storage,drive=cd0,bus=xhci.0,bootindex=1 \
-  -drive "if=none,id=cd1,file=$VIRTIO_ISO,format=raw,media=cdrom,readonly=on" \
-  -device usb-storage,drive=cd1,bus=xhci.0 \
-  -netdev user,id=net0,hostfwd=tcp::2223-:3389 \
+ARGS=(
+  -machine virt,highmem=on,memory-backend=pc.ram
+  -accel hvf,tso=on
+  -cpu host
+  -smp 4
+  -m 8G
+  -object memory-backend-ram,id=pc.ram,size=8G,prealloc=on,share=off
+  -drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd
+  -drive "if=pflash,format=raw,file=$UEFI_VARS"
+  # Windows-on-ARM bootmgr cannot draw on virtio-gpu-pci (no GOP). Use the
+  # paravirtual RAM framebuffer instead -- EDK2 always provides a GOP for it.
+  -device ramfb
+  -display cocoa
+  -device usb-ehci,id=usb0
+  -device usb-kbd,bus=usb0.0
+  -device usb-tablet,bus=usb0.0
+)
+if [ ${#TPM_ARGS[@]} -gt 0 ]; then ARGS+=("${TPM_ARGS[@]}"); fi
+ARGS+=(
+  # Install target on NVMe -- Windows 11 ARM has inbox NVMe drivers so no
+  # driver-load dance is needed during installation. virtio-blk-pci would
+  # also work but requires loading viostor from virtio-win.iso, and the
+  # driver INF in 0.1.285 doesn't pass installer verification on this build.
+  -drive "if=none,id=hd0,file=$WIN_DISK,format=qcow2,cache=writeback,discard=unmap"
+  -device nvme,drive=hd0,serial=windows-arm,bootindex=2
+  # Windows ISO on virtio-scsi (EDK2 boots from it during firmware phase).
+  # WinPE never needs to access this CD again -- boot.wim is already in RAM by
+  # the time installer runs.
+  -device virtio-scsi-pci,id=scsi0
+  -drive "if=none,id=cd0,file=$WIN_ISO,format=raw,media=cdrom,readonly=on"
+  -device scsi-cd,drive=cd0,bus=scsi0.0,bootindex=1
+  # virtio-win.iso on USB instead -- WinPE has inbox USB-storage drivers but
+  # no inbox virtio-scsi driver, so the driver-load step inside the installer
+  # would not see a virtio-scsi CD. USB is reliable for the smaller (753 MB)
+  # virtio-win ISO since it's only read by WinPE, not by the bootloader.
+  -drive "if=none,id=cd1,file=$VIRTIO_ISO,format=raw,media=cdrom,readonly=on"
+  -device usb-storage,drive=cd1,bus=usb0.0
+  -netdev user,id=net0,hostfwd=tcp::2223-:3389
   -device virtio-net-pci,netdev=net0
+)
+
+exec ./build/qemu-system-aarch64 "${ARGS[@]}"

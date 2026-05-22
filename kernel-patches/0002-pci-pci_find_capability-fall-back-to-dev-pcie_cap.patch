@@ -1,0 +1,47 @@
+Subject: [PATCH 2/3] pci: pci_find_capability() falls back to dev->pcie_cap
+
+Companion to the orphan PCIe Express cap adoption patch in probe.c.
+
+set_pcie_port_type() now records the orphan cap location in
+dev->pcie_cap when the legacy cap chain doesn't link to it. But many
+callers (including _pci_add_cap_save_buffer(), aer_init, and others)
+re-derive the cap location by calling pci_find_capability(dev,
+PCI_CAP_ID_EXP) directly, and those calls still return 0 because they
+just walk the legacy chain.
+
+Without this fallback, pci_save_state() later fails with:
+   "buffer not found in pci_save_pcie_state"
+and AER/Rebar buffers are never allocated.
+
+Make pci_find_capability(dev, PCI_CAP_ID_EXP) return dev->pcie_cap when
+the legacy chain walk fails. Safe: dev->pcie_cap is only set when our
+orphan scan already validated the cap header.
+
+Apply to: drivers/pci/pci.c
+
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -480,6 +480,18 @@ u8 pci_find_capability(struct pci_dev *dev, int cap)
+ 	if (pos)
+ 		pos = __pci_find_next_cap(dev->bus, dev->devfn, pos, cap);
+
++	/*
++	 * v2 fix for the orphaned-PCIe-cap quirk (AMD RDNA4 / Navi48):
++	 * if the legacy cap chain didn't find PCI_CAP_ID_EXP but our
++	 * earlier orphan scan in set_pcie_port_type() did and recorded
++	 * it in dev->pcie_cap, use that. Without this, callers like
++	 * _pci_add_cap_save_buffer() never allocate the PCIe save buffer
++	 * and pci_save_state() later fails with "buffer not found in
++	 * pci_save_pcie_state".
++	 */
++	if (!pos && cap == PCI_CAP_ID_EXP && dev->pcie_cap)
++		pos = dev->pcie_cap;
++
+ 	return pos;
+ }
+ EXPORT_SYMBOL(pci_find_capability);
+
+NOTE: For other kernel versions, locate the body of pci_find_capability
+in drivers/pci/pci.c (a short function ~10 lines that calls
+__pci_bus_find_cap_start and __pci_find_next_cap), and insert the
+fallback block before the final `return pos;`.

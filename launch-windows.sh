@@ -41,26 +41,32 @@ if [ ! -f "$UEFI_VARS" ]; then
   echo "ERROR: $UEFI_VARS not found. Run launch-windows-install.sh once first." >&2
   exit 1
 fi
-if ! command -v swtpm >/dev/null; then
-  echo "ERROR: swtpm not installed. brew install swtpm" >&2
-  exit 1
-fi
+# tpm-tis-device fails on aarch64 HVF (HV_BAD_ARGUMENT). Skip TPM at boot.
+USE_TPM=0
 
 MODE="${1:-perf}"
 
-# Start swtpm in a per-launch socket directory; tear it down on exit.
-TPM_DIR="$(mktemp -d)"
+TPM_DIR=""
+TPM_ARGS=()
 trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$TPM_DIR"; rm -f "$QMP_SOCK"' EXIT
-swtpm socket \
-  --tpm2 \
-  --tpmstate "dir=$TPM_DIR,mode=0600" \
-  --ctrl "type=unixio,path=$TPM_DIR/swtpm-sock" \
-  --log "level=20" \
-  --terminate &
-for _ in $(seq 1 50); do
-  [ -S "$TPM_DIR/swtpm-sock" ] && break
-  sleep 0.1
-done
+if [ "$USE_TPM" = "1" ]; then
+  TPM_DIR="$(mktemp -d)"
+  swtpm socket \
+    --tpm2 \
+    --tpmstate "dir=$TPM_DIR,mode=0600" \
+    --ctrl "type=unixio,path=$TPM_DIR/swtpm-sock" \
+    --log "level=20" \
+    --terminate &
+  for _ in $(seq 1 50); do
+    [ -S "$TPM_DIR/swtpm-sock" ] && break
+    sleep 0.1
+  done
+  TPM_ARGS=(
+    -chardev "socket,id=chrtpm,path=$TPM_DIR/swtpm-sock"
+    -tpmdev emulator,id=tpm0,chardev=chrtpm
+    -device tpm-tis-device,tpmdev=tpm0
+  )
+fi
 
 ARGS=(
   -machine virt,highmem=on,memory-backend=pc.ram
@@ -71,19 +77,17 @@ ARGS=(
   -object memory-backend-ram,id=pc.ram,size=48G,prealloc=on,share=off
   -drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd
   -drive "if=pflash,format=raw,file=$UEFI_VARS"
-  -device virtio-gpu-pci
+  -device ramfb
   -display cocoa
-  -device qemu-xhci,id=xhci
-  -device usb-kbd,bus=xhci.0
-  -device usb-tablet,bus=xhci.0
-  -chardev "socket,id=chrtpm,path=$TPM_DIR/swtpm-sock"
-  -tpmdev emulator,id=tpm0,chardev=chrtpm
-  -device tpm-tis-device,tpmdev=tpm0
+  -device usb-ehci,id=usb0
+  -device usb-kbd,bus=usb0.0
+  -device usb-tablet,bus=usb0.0
   -drive "if=none,id=hd0,file=$WIN_DISK,format=qcow2,cache=writeback,discard=unmap"
-  -device virtio-blk-pci,drive=hd0,bootindex=1
+  -device nvme,drive=hd0,serial=windows-arm,bootindex=1
   -netdev user,id=net0,hostfwd=tcp::2223-:3389
   -device virtio-net-pci,netdev=net0
 )
+if [ ${#TPM_ARGS[@]} -gt 0 ]; then ARGS+=("${TPM_ARGS[@]}"); fi
 
 case "$MODE" in
   perf|performance|"")

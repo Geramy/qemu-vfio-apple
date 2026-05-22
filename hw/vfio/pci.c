@@ -2675,6 +2675,75 @@ bool vfio_pci_add_capabilities(VFIOPCIDevice *vdev, Error **errp)
         return false;
     }
 
+    /*
+     * Orphan-scan fallback for devices that report their PCIe Capability
+     * Structure in standard config space but fail to link it in the legacy
+     * cap chain reachable via PCI_CAPABILITY_LIST. The AMD RDNA4 / Navi48
+     * family is a known offender.
+     *
+     * Without this, QEMU itself treats the device as conventional PCI:
+     *   - pdev->exp.exp_cap stays 0
+     *   - pdev->cap_present & QEMU_PCI_CAP_EXPRESS is false
+     *   - downstream guards (e.g. apple-device.c's PCI_EXP_DEVCTL write
+     *     blocker) never fire
+     *   - a guest that DOES find the orphan (with the matching Linux
+     *     kernel quirk) then writes DEVCTL through QEMU to the physical
+     *     device, causing PCIe completion timeouts (BAR0 reads return
+     *     garbage, IP discovery fails, etc.).
+     *
+     * Match the cap by signature and run it through the normal vfio
+     * setup path so cap_present and exp_cap get the right values.
+     */
+    /*
+     * Condition: pdev->exp.exp_cap == 0 means the standard chain walk
+     * above never registered a PCIe Capability Structure for this
+     * device. cap_present & QEMU_PCI_CAP_EXPRESS is too loose -- that
+     * bit is set whenever the device sits on a PCIe bus, regardless
+     * of whether the device's own PCIe cap was found.
+     */
+    if (pdev->exp.exp_cap == 0) {
+        uint8_t pos;
+        for (pos = PCI_CONFIG_HEADER_SIZE;
+             pos <= PCI_CONFIG_SPACE_SIZE - 4;
+             pos += 4) {
+            /* Read directly from the device via vfio rather than from
+             * pdev->config[], which is only populated for offsets reached
+             * by the legacy cap chain walk. */
+            uint32_t dw = vfio_pci_read_config(pdev, pos, 4);
+            if ((dw & 0xff) != PCI_CAP_ID_EXP) {
+                continue;
+            }
+            warn_report("vfio: %s adopting orphaned PCIe capability at 0x%02x "
+                        "(not in legacy cap chain)",
+                        vdev->vbasedev.name, pos);
+            vfio_check_pcie_flr(vdev, pos);
+            if (!vfio_setup_pcie_cap(vdev, pos,
+                                     vfio_std_cap_max_size(pdev, pos), errp)) {
+                if (errp && *errp) {
+                    warn_report_err(*errp);
+                    *errp = NULL;
+                }
+            }
+            /*
+             * vfio_setup_pcie_cap returns true (success) WITHOUT setting
+             * exp_cap when the device is a PCIe Legacy Endpoint on a root
+             * complex bus -- it intentionally skips pci_add_capability in
+             * that path because "Windows seems happier without the cap."
+             * For our case we still need exp_cap so downstream (e.g.,
+             * apple-device.c's DEVCTL filter) can locate the cap. Force
+             * the field if vfio_setup_pcie_cap didn't.
+             */
+            if (pdev->exp.exp_cap == 0) {
+                pdev->exp.exp_cap = pos;
+                pdev->cap_present |= QEMU_PCI_CAP_EXPRESS;
+                warn_report("vfio: %s force-setting exp_cap=0x%02x for orphan "
+                            "(vfio_setup_pcie_cap took LEG_END/root-bus shortcut)",
+                            vdev->vbasedev.name, pos);
+            }
+            break;
+        }
+    }
+
     vfio_add_ext_cap(vdev);
     return true;
 }

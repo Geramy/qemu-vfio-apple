@@ -37,7 +37,7 @@ ARGS=(
   -machine virt,highmem=on,memory-backend=pc.ram
   -accel hvf,tso=on
   -cpu host
-  -smp 4
+  -smp 8
   -m 48G
   -object memory-backend-ram,id=pc.ram,size=48G,prealloc=on,share=off
   -device virtio-gpu-pci
@@ -52,6 +52,10 @@ ARGS=(
 
 # GPU passthrough device.
 #
+# NO_GPU=1 skips the GPU passthrough device entirely. Use this when you need to
+# boot the guest (e.g. to build a kernel patch) without risking putting the GPU
+# into a bad state on a failed init attempt.
+#
 # trace-bar-mmio=on (TRACE_BAR_MMIO=1) disables BAR mmap so every guest BAR
 # access traps to QEMU and fires apple_vfio_bar_{read,write} trace events.
 # Big perf hit, and some NEON/SIMD/atomic accesses cannot be emulated (the
@@ -59,7 +63,9 @@ ARGS=(
 # nothing for that instruction). Useful for capturing PSP/SMU register
 # sequences leading up to a hang. Pair with in-guest ftrace (guest-trace-amdgpu.sh)
 # for the data the host-side trace can't show.
-if [ "${TRACE_BAR_MMIO:-0}" = "1" ]; then
+if [ "${NO_GPU:-0}" = "1" ]; then
+  echo "    GPU passthrough SKIPPED (NO_GPU=1)"
+elif [ "${TRACE_BAR_MMIO:-0}" = "1" ]; then
   echo "    BAR mmap DISABLED (every MMIO traps -- slow boot; SIMD accesses skipped)"
   ARGS+=(-device "vfio-apple-pci,host=05:00.0,dma-companion=on,trace-bar-mmio=on")
 else
@@ -111,7 +117,9 @@ case "$MODE" in
     ;;
 esac
 
-echo "    GPU passthrough: 05:00.0 via vfio-apple-pci (dma-companion=on)"
+if [ "${NO_GPU:-0}" != "1" ]; then
+  echo "    GPU passthrough: 05:00.0 via vfio-apple-pci (dma-companion=on)"
+fi
 echo "    Guest SSH:       ssh -p 2222 geramy@127.0.0.1"
 echo ""
 

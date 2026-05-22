@@ -547,6 +547,43 @@ static int apple_vfio_bar_read(VFIODevice *vbasedev, uint8_t nr, off_t off,
     return size;
 }
 
+/*
+ * Overlay the locked DEVCTL MPS/MRRS bits into a buffer that was just read
+ * from the device.
+ *
+ * We deliberately do NOT use vdev->emulated_config_bits as the source of
+ * truth here -- QEMU's vfio-pci core also sets bits in that array for BARs
+ * (size discovery) and other ranges, and using it generically would clobber
+ * those by reading from pdev->config[] which we don't reliably populate.
+ * Instead, we hardcode just the DEVCTL byte locations so we know we're only
+ * touching what we explicitly locked in apple_vfio_lockdown_devctl_mps_mrrs.
+ */
+static void apple_vfio_apply_emulated_reads(VFIOPCIDevice *vdev,
+                                            off_t off, uint32_t len,
+                                            void *data)
+{
+    PCIDevice *pdev = PCI_DEVICE(vdev);
+    uint8_t *buf = data;
+    off_t end = off + len;
+    uint8_t devctl_lo;
+    uint8_t devctl_hi;
+
+    if (pdev->config == NULL || pdev->exp.exp_cap == 0) {
+        return;
+    }
+    devctl_lo = pdev->exp.exp_cap + PCI_EXP_DEVCTL;     /* MPS bits 7:5 */
+    devctl_hi = pdev->exp.exp_cap + PCI_EXP_DEVCTL + 1; /* MRRS bits 6:4 of high byte */
+
+    if (off <= devctl_lo && devctl_lo < end) {
+        int i = devctl_lo - off;
+        buf[i] = (buf[i] & ~0xE0) | (pdev->config[devctl_lo] & 0xE0);
+    }
+    if (off <= devctl_hi && devctl_hi < end) {
+        int i = devctl_hi - off;
+        buf[i] = (buf[i] & ~0x70) | (pdev->config[devctl_hi] & 0x70);
+    }
+}
+
 static int apple_vfio_region_read(VFIODevice *vbasedev, uint8_t nr, off_t off,
                                   uint32_t size, void *data)
 {
@@ -573,6 +610,8 @@ static int apple_vfio_region_read(VFIODevice *vbasedev, uint8_t nr, off_t off,
         }
 
         memcpy(data, &value, legacy_size);
+        apple_vfio_apply_emulated_reads(VFIO_PCI_DEVICE(vbasedev->dev),
+                                        off, legacy_size, data);
         if (legacy_size < size) {
             memset((uint8_t *)data + legacy_size, 0, size - legacy_size);
         }
@@ -583,6 +622,8 @@ static int apple_vfio_region_read(VFIODevice *vbasedev, uint8_t nr, off_t off,
     if (kr != KERN_SUCCESS) {
         return -EIO;
     }
+    apple_vfio_apply_emulated_reads(VFIO_PCI_DEVICE(vbasedev->dev),
+                                    off, legacy_size, data);
     if (legacy_size < size) {
         memset((uint8_t *)data + legacy_size, 0, size - legacy_size);
     }
@@ -631,17 +672,14 @@ static bool apple_vfio_config_write_is_safe(VFIOPCIDevice *vdev,
     }
 
     /*
-     * PCIe Device Control / Device Control 2 — writing MPS or MRRS to
-     * the physical device while DART mappings are active causes PCIe
-     * completion timeouts.
+     * NB: PCIe Device Control / Device Control 2 writes are NOT blocked
+     * here. They are conditionally rewritten in apple_vfio_region_write
+     * to preserve MPS/MRRS bits (which would break DART mappings) while
+     * still letting through other bits the guest sets -- notably FLR
+     * (PCI_EXP_DEVCTL_BCR_FLR, bit 15), without which a wedged PSP from
+     * a prior boot can't be reset, leading to later register-write
+     * timeouts and host LLC panics.
      */
-    if (pdev->cap_present & QEMU_PCI_CAP_EXPRESS) {
-        uint8_t pcie_cap = pdev->exp.exp_cap;
-        if (ranges_overlap(off, size, pcie_cap + PCI_EXP_DEVCTL, 2) ||
-            ranges_overlap(off, size, pcie_cap + PCI_EXP_DEVCTL2, 2)) {
-            return false;
-        }
-    }
 
     return true;
 }
@@ -734,6 +772,52 @@ static int apple_vfio_region_write(VFIODevice *vbasedev, uint8_t nr, off_t off,
     legacy_size = MIN(size, PCIE_CONFIG_SPACE_SIZE - off);
     if (!(legacy_size == 1 || legacy_size == 2 || legacy_size == 4)) {
         return -EINVAL;
+    }
+
+    /*
+     * Filter MPS/MRRS out of any DEVCTL write before it reaches the device.
+     *
+     * Matches the read-side overlay in apple_vfio_apply_emulated_reads():
+     * the guest's intended MPS/MRRS bits are stashed in pdev->config[]
+     * (so subsequent reads observe what the guest wrote), but the device
+     * itself is never asked to renegotiate -- those values are locked to
+     * what Apple's bridge already negotiated.
+     *
+     * Hardcoded to the two DEVCTL bytes only (rather than walking
+     * vdev->emulated_config_bits over the full write) because vfio-pci
+     * sets emulated bits for BARs and other ranges where blanket use of
+     * that mask would clobber bits the vfio core already manages.
+     *
+     * Other DEVCTL bits (FLR @ bit 15, AER enables, etc.) pass through
+     * unchanged so amdgpu's reset path and error-reporting setup keep
+     * working.
+     */
+    {
+        PCIDevice *pdev2 = PCI_DEVICE(vbasedev->dev);
+        uint8_t *vbuf = (uint8_t *)&value;
+
+        if (pdev2->config != NULL && pdev2->exp.exp_cap != 0) {
+            off_t devctl_lo = pdev2->exp.exp_cap + PCI_EXP_DEVCTL;
+            off_t devctl_hi = devctl_lo + 1;
+            off_t end = off + legacy_size;
+
+            if (off <= devctl_lo && devctl_lo < end) {
+                int i = devctl_lo - off;
+                /* MPS = DEVCTL bits 7:5 (low byte). */
+                pdev2->config[devctl_lo] =
+                    (pdev2->config[devctl_lo] & ~0xE0) | (vbuf[i] & 0xE0);
+                vbuf[i] &= ~0xE0;
+            }
+            if (off <= devctl_hi && devctl_hi < end) {
+                int i = devctl_hi - off;
+                /* MRRS = DEVCTL bits 14:12 = bits 6:4 of the high byte. */
+                pdev2->config[devctl_hi] =
+                    (pdev2->config[devctl_hi] & ~0x70) | (vbuf[i] & 0x70);
+                vbuf[i] &= ~0x70;
+            }
+            /* vbuf aliases &value, so masking through vbuf already
+             * updated the value that will be forwarded to the device. */
+        }
     }
 
     kr = apple_dext_config_write(conn, off, legacy_size, value);
@@ -1061,6 +1145,63 @@ static void apple_vfio_pci_instance_init(Object *obj)
     apple_vfio_pci_init(adev);
 }
 
+/*
+ * Lock the PCIe DEVCTL MPS/MRRS bits to whatever the device has at this
+ * point in time (set by VBIOS / negotiated by Apple's DriverKit + DART).
+ * After this:
+ *   - Guest reads of DEVCTL return the locked values for those bits.
+ *   - Guest writes to those bits are silently dropped (never reach hardware).
+ *
+ * Rationale: writing MPS/MRRS to the physical device while the host's DART
+ * mappings are active causes PCIe completion timeouts that escalate to a
+ * macOS LLC bus-error panic. We can't change those settings safely, but we
+ * also don't want to drop the entire DEVCTL write (which would block FLR
+ * and AER enables). Read-only emulation gives the guest a self-consistent
+ * view of the bits Apple/DART already settled on.
+ */
+static void apple_vfio_lockdown_devctl_mps_mrrs(VFIOApplePCIDevice *adev)
+{
+    PCIDevice *pdev = PCI_DEVICE(adev);
+    VFIOPCIDevice *vdev = VFIO_PCI_DEVICE(adev);
+    io_connect_t conn = apple_vfio_connection(&vdev->vbasedev);
+    uint8_t devctl_off;
+    uint64_t cur_devctl = 0;
+
+    if (pdev->exp.exp_cap == 0 || conn == IO_OBJECT_NULL ||
+        pdev->config == NULL || pdev->wmask == NULL ||
+        vdev->emulated_config_bits == NULL) {
+        warn_report("vfio-apple: MPS/MRRS lockdown skipped "
+                    "(exp_cap=0x%x conn=%d arrays=%p/%p/%p)",
+                    pdev->exp.exp_cap, (int)(conn != IO_OBJECT_NULL),
+                    pdev->config, pdev->wmask, vdev->emulated_config_bits);
+        return;
+    }
+    devctl_off = pdev->exp.exp_cap + PCI_EXP_DEVCTL;
+
+    if (apple_dext_config_read(conn, devctl_off, 2, &cur_devctl) != KERN_SUCCESS) {
+        warn_report("vfio-apple: failed to read current DEVCTL; "
+                    "MPS/MRRS lockdown skipped");
+        return;
+    }
+
+    /* MPS = bits 7:5 (low byte mask 0xE0); MRRS = bits 14:12 (high byte mask 0x70). */
+    pdev->config[devctl_off + 0] =
+        (pdev->config[devctl_off + 0] & ~0xE0) | ((uint8_t)cur_devctl & 0xE0);
+    pdev->config[devctl_off + 1] =
+        (pdev->config[devctl_off + 1] & ~0x70) | ((uint8_t)(cur_devctl >> 8) & 0x70);
+
+    /* Mark those bits as emulated (reads come from pdev->config, writes don't
+     * reach the device) and read-only (writes silently dropped). */
+    vdev->emulated_config_bits[devctl_off + 0] |= 0xE0;
+    vdev->emulated_config_bits[devctl_off + 1] |= 0x70;
+    pdev->wmask[devctl_off + 0] &= ~0xE0;
+    pdev->wmask[devctl_off + 1] &= ~0x70;
+
+    warn_report("vfio-apple: locked DEVCTL MPS/MRRS @ off=0x%02x to "
+                "device-current 0x%04llx (guest writes will be ignored)",
+                devctl_off, (unsigned long long)(cur_devctl & 0x70E0));
+}
+
 static void apple_vfio_pci_realize_fn(PCIDevice *pdev, Error **errp)
 {
     ERRP_GUARD();
@@ -1075,6 +1216,12 @@ static void apple_vfio_pci_realize_fn(PCIDevice *pdev, Error **errp)
         g_clear_pointer(&adev->apple, g_free);
         return;
     }
+
+    /* Now that parent_realize() has set up pdev->exp.exp_cap (via the
+     * orphan-scan in vfio_pci_add_capabilities for chains that don't link
+     * their PCIe cap), lock down the MPS/MRRS bits to the device's current
+     * values so the guest can't change them via DEVCTL writes. */
+    apple_vfio_lockdown_devctl_mps_mrrs(adev);
 
     if (adev->use_dma_companion) {
         if (!apple_vfio_create_dma_companion(adev, errp)) {

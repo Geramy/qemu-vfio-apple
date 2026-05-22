@@ -32,3 +32,11 @@ traces/
 
 # Environment-specific disk images
 *.qcow2
+
+# Windows VM artifacts (large binary, machine-specific state)
+Win11_25H2_English_Arm64_v2.iso
+*.iso
+uefi-vars-windows.fd
+
+# Editor / OS noise
+.DS_Store
